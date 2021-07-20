@@ -1,7 +1,9 @@
 # GUINNESS_on_colab
 
 This repository is a modification of GUINNESS for use with Google colablatory.
+
 There is a Jupiter notebook for road tracking that you can easily try by opening it in "Google colablatory".
+
 Changes from the original source code are written in diff.txt.
 
 ### 1. How to use 
