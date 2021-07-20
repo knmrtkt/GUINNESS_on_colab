@@ -9,7 +9,7 @@ Changes from the original source code are written in diff.txt.
 ### 1. How to use 
 
 1. Access the below link
-    - [Open road tracking with Colab](https://colab.research.google.com/github/knmrtkt/CUINNESS/blob/master/on_colab.ipynb)
+    - [Open road tracking with Colab](https://colab.research.google.com/github/knmrtkt/GUINNESS_on_colab/blob/master/on_colab.ipynb)
 1. Select GPU Runtime from the pull-down menu at the top.
 1. Execute each cell in order from the top.
     - The variables enclosed in # in each cell are the parameters.
