@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <iostream>
 #include <bitset>
+#include <climits>
 
 #include <ap_int.h>
 
