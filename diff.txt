@@ -1,0 +1,3142 @@
+Only in GUINNESS_on_colab: build.tcl
+diff -r GUINNESS/conv_npz2txt_v2.py GUINNESS_on_colab/conv_npz2txt_v2.py
+64a65,70
+> 		# Text File Out 2
+> 		fname = args.config_path + '/HLS/conv%dW.txt' % conv_idx
+> 
+> 		print(' Fileout (.txt) -> %s' % fname)
+> 		np.savetxt(fname, bincoef2,fmt="%.0f",delimiter=",")
+> 
+66c72
+< 		fname = args.config_path + '/HLS/conv%dW.csv' % conv_idx
+---
+> 		fname = args.config_path + '/HLS_old/conv%dW.csv' % conv_idx
+75c81
+< 		fname = args.config_path + '/HLS/t_bin_conv%dW.h' % conv_idx
+---
+> 		fname = args.config_path + '/HLS_old/t_bin_conv%dW.h' % conv_idx
+98a105,110
+> 		#File out Textfile for SDSoC 2
+> 		fname = args.config_path + '/HLS/fc%dW.txt' % dense_idx
+> 
+> 		print(' Fileout -> %s' % fname)
+> 		np.savetxt(fname, bincoef2,fmt="%.0f",delimiter=",")
+> 
+100c112
+< 		fname = args.config_path + '/HLS/fc%dW.csv' % dense_idx
+---
+> 		fname = args.config_path + '/HLS_old/fc%dW.csv' % dense_idx
+109c121
+< 		fname = args.config_path + '/HLS/t_bin_fc%dW.h' % dense_idx
+---
+> 		fname = args.config_path + '/HLS_old/t_bin_fc%dW.h' % dense_idx
+142a155,161
+> 		# Fileout Textfile for SDSoC 2
+> 		fname = args.config_path + '/HLS/b%d_BNFb.txt' % bn_idx
+> 
+> 		print(' Fileout -> %s' % fname)
+> 		with open(fname,'w') as f:
+> 			f.write(txt_val)
+> 
+144c163
+< 		fname = args.config_path + '/HLS/b%d_BNFb.h' % bn_idx
+---
+> 		fname = args.config_path + '/HLS_old/b%d_BNFb.h' % bn_idx
+diff -r GUINNESS/eval.py GUINNESS_on_colab/eval.py
+36a37
+> from PIL import Image
+42c43
+<     parser.add_argument('--model', '-m', type=str, default='hoge.model',
+---
+>     parser.add_argument('--model', '-m', type=str, default='temp.model',
+47a49,51
+>     parser.add_argument('--testnum', type=int, default=10,
+>                         help='Test Image Num')
+>                         
+90c94,97
+<     n_tests = 10
+---
+>     if(args.testnum == -1):
+>         n_tests = len(test_x)
+>     else:
+>         n_tests = args.testnum
+105c112
+<         '''
+---
+> #        '''
+107,110c114,123
+<         fname = 'test_img_%d.txt' % idx # + str(idx) + '.txt'
+<         print(' Test Image Fileout -> %s' % fname)
+<         np.savetxt(fname, bench_img, fmt="%.0f", delimiter=",")
+<         '''
+---
+>         if(n_tests==-1):
+>             fname = 'test_img_%d.txt' % idx # + str(idx) + '.txt'
+>             print(' Test Image Fileout -> %s' % fname)
+>             np.savetxt(fname, bench_img, fmt="%.0f", delimiter=",")
+> 
+>         if idx == 0:
+>             fname = 'HLS/test_img_%d.txt' % idx # + str(idx) + '.txt'
+>             print(' Test Image Fileout -> %s' % fname)
+>             np.savetxt(fname, bench_img, fmt="%.0f", delimiter=",")
+> #        '''
+117,121c130,132
+< 
+<         # show test image
+<         cv2.imshow("test image", image1)
+<         cv2.waitKey(0)
+<         cv2.destroyAllWindows()
+---
+>         if(n_tests==-1):
+>             pil_img = Image.fromarray(image1)
+>             pil_img.save('test_img_%d.png'  %idx)
+diff -r GUINNESS/function_batch_normalization.py GUINNESS_on_colab/function_batch_normalization.py
+3d2
+< from chainer import cuda
+7c6,8
+< if cuda.cudnn_enabled:
+---
+> try:
+>     import cupy
+>     from cupy import cuda
+9c10
+<     libcudnn = cudnn.cudnn
+---
+>     libcudnn = cudnn
+10a12,13
+> except ImportError:
+>     print("no cuda")
+46c49,50
+<         n_in = in_types.size().eval()
+---
+>         #n_in = in_types.size().eval()
+>         n_in = in_types.size()
+113,115c117,119
+<             x = cuda.cupy.ascontiguousarray(x)
+<             gamma = cuda.cupy.ascontiguousarray(gamma)
+<             beta = cuda.cupy.ascontiguousarray(beta)
+---
+>             x = cupy.ascontiguousarray(x)
+>             gamma = cupy.ascontiguousarray(gamma)
+>             beta = cupy.ascontiguousarray(beta)
+124c128
+<             y = cuda.cupy.empty_like(x)
+---
+>             y = cupy.empty_like(x)
+171c175,176
+<                 self.x_hat, y = cuda.elementwise(
+---
+>                 #self.x_hat, y = cuda.elementwise(
+>                 self.x_hat, y = cupy.ElementwiseKernel(
+239,241c244,246
+<             gx = cuda.cupy.empty_like(x)
+<             ggamma = cuda.cupy.empty_like(gamma)
+<             gbeta = cuda.cupy.empty_like(gamma)
+---
+>             gx = cupy.empty_like(x)
+>             ggamma = cupy.empty_like(gamma)
+>             gbeta = cupy.empty_like(gamma)
+diff -r GUINNESS/function_binary_conv2d.py GUINNESS_on_colab/function_binary_conv2d.py
+4d3
+< from chainer import cuda
+9,13d7
+< def _kern():
+<     return cuda.elementwise(
+<         'T x', 'T y',
+<         'y = x >= 0 ? 1 : -1',
+<         'binarize')
+15,21c9,11
+< def _as_mat(x):
+<     if x.ndim == 2:
+<         return x
+<     return x.reshape(len(x), -1)
+< 
+< 
+< if cuda.cudnn_enabled:
+---
+> try:
+>     import cupy
+>     from cupy import cuda
+23c13
+<     libcudnn = cuda.cudnn.cudnn
+---
+>     libcudnn = cuda.cudnn
+30a21,39
+> except ImportError:
+>     print("no cuda")
+> 
+> def _kern():
+>     # return cuda.elementwise(
+>     #     'T x', 'T y',
+>     #     'y = x >= 0 ? 1 : -1',
+>     #     'binarize')
+>     ret = cupy.ElementwiseKernel(
+>         'T x', 'T y',
+>          'y = x >= 0 ? 1 : -1',
+>          'binarize')
+>     return ret
+> 
+> def _as_mat(x):
+>     if x.ndim == 2:
+>         return x
+>     return x.reshape(len(x), -1)
+> 
+65,66c74,75
+< 
+<         if n_in.eval() == 3:
+---
+>         #if n_in.eval() == 3:
+>         if n_in == 3:
+104c113,114
+<         y = cuda.cupy.empty((n, out_c, out_h, out_w), dtype=x.dtype)
+---
+>         #y = cupy.empty((n, out_c, out_h, out_w), dtype=x.dtype)
+>         y = cupy.empty((n, out_c, out_h, out_w), dtype=x.dtype)
+107,108c117,118
+<             x = cuda.cupy.ascontiguousarray(x)
+<             W = cuda.cupy.ascontiguousarray(W)
+---
+>             x = cupy.ascontiguousarray(x)
+>             W = cupy.ascontiguousarray(W)
+110c120
+<                 b = cuda.cupy.ascontiguousarray(b)
+---
+>                 b = cupy.ascontiguousarray(b)
+124c134
+<             workspace = cuda.cupy.empty((workspace_size,), dtype='b')
+---
+>             workspace = cupy.empty((workspace_size,), dtype='b')
+197c207,208
+<         gW = cuda.cupy.empty_like(W)
+---
+>         #gW = cupy.empty_like(W)
+>         gW = cupy.empty_like(W)
+200,202c211,213
+<             x = cuda.cupy.ascontiguousarray(x)
+<             W = cuda.cupy.ascontiguousarray(W)
+<             gy = cuda.cupy.ascontiguousarray(gy)
+---
+>             x = cupy.ascontiguousarray(x)
+>             W = cupy.ascontiguousarray(W)
+>             gy = cupy.ascontiguousarray(gy)
+210c221
+<             gx = cuda.cupy.empty_like(x)
+---
+>             gx = cupy.empty_like(x)
+214c225
+<                 workspace = cuda.cupy.empty((workspace_size,), dtype='b')
+---
+>                 workspace = cupy.empty((workspace_size,), dtype='b')
+246c257
+<                 gb = cuda.cupy.empty_like(b)
+---
+>                 gb = cupy.empty_like(b)
+257c268
+<                 gW_mat += cuda.cupy.dot(gy_mats[i], col_mats[i].T)
+---
+>                 gW_mat += cupy.dot(gy_mats[i], col_mats[i].T)
+262c273
+<             gcol = cuda.cupy.empty_like(self.col)
+---
+>             gcol = cupy.empty_like(self.col)
+266c277
+<                 gcol_mats[i] = cuda.cupy.dot(Wb_mat.T, gy_mats[i])
+---
+>                 gcol_mats[i] = cupy.dot(Wb_mat.T, gy_mats[i])
+diff -r GUINNESS/function_binary_linear.py GUINNESS_on_colab/function_binary_linear.py
+3c3
+< from chainer import cuda
+---
+> 
+6c6,11
+< 
+---
+> try:
+>     import cupy
+>     from cupy import cuda
+> except ImportError:
+>     print("no cuda")
+>     
+8c13,17
+<     return cuda.elementwise(
+---
+>     # return cuda.elementwise(
+>     #     'T x', 'T y',
+>     #     'y = x >= 0 ? 1 : -1',
+>     #     'binarize')
+>     ret = cupy.ElementwiseKernel(
+11a21
+>     return ret
+32c42,43
+<         if n_in.eval() == 3:
+---
+>         #if n_in.eval() == 3:
+>         if n_in == 3:
+diff -r GUINNESS/function_integer_conv2d.py GUINNESS_on_colab/function_integer_conv2d.py
+4d3
+< from chainer import cuda
+8a8,23
+> try:
+>     import cupy
+>     from cupy import cuda
+>     cudnn = cuda.cudnn
+>     #libcudnn = cuda.cudnn.cudnn
+>     libcudnn = cuda.cudnn
+>     _cudnn_version = libcudnn.getVersion()
+>     _fwd_pref = libcudnn.CUDNN_CONVOLUTION_FWD_SPECIFY_WORKSPACE_LIMIT
+>     if _cudnn_version >= 4000:
+>         _bwd_filter_pref = \
+>             libcudnn.CUDNN_CONVOLUTION_BWD_FILTER_SPECIFY_WORKSPACE_LIMIT
+>         _bwd_data_pref = \
+>             libcudnn.CUDNN_CONVOLUTION_BWD_DATA_SPECIFY_WORKSPACE_LIMIT
+> except ImportError:
+>     print("no cuda")
+> 
+10c25,30
+<     return cuda.elementwise(
+---
+>     # return cuda.elementwise(
+>     #     'T x', 'T y',
+>     #     'y = x >= 0 ? 1 : -1',
+>     #     'binarize')
+>     
+>     ret = cupy.ElementwiseKernel(
+13a34
+>     return ret
+21,31d41
+< if cuda.cudnn_enabled:
+<     cudnn = cuda.cudnn
+<     libcudnn = cuda.cudnn.cudnn
+<     _cudnn_version = libcudnn.getVersion()
+<     _fwd_pref = libcudnn.CUDNN_CONVOLUTION_FWD_SPECIFY_WORKSPACE_LIMIT
+<     if _cudnn_version >= 4000:
+<         _bwd_filter_pref = \
+<             libcudnn.CUDNN_CONVOLUTION_BWD_FILTER_SPECIFY_WORKSPACE_LIMIT
+<         _bwd_data_pref = \
+<             libcudnn.CUDNN_CONVOLUTION_BWD_DATA_SPECIFY_WORKSPACE_LIMIT
+< 
+66c76,77
+<         if n_in.eval() == 3:
+---
+>         #if n_in.eval() == 3:
+>         if n_in == 3:
+104c115,116
+<         y = cuda.cupy.empty((n, out_c, out_h, out_w), dtype=x.dtype)
+---
+>         #y = cupy.empty((n, out_c, out_h, out_w), dtype=x.dtype)
+>         y = cupy.empty((n, out_c, out_h, out_w), dtype=x.dtype)
+107,108c119,120
+<             x = cuda.cupy.ascontiguousarray(x)
+<             W = cuda.cupy.ascontiguousarray(W)
+---
+>             x = cupy.ascontiguousarray(x)
+>             W = cupy.ascontiguousarray(W)
+110c122
+<                 b = cuda.cupy.ascontiguousarray(b)
+---
+>                 b = cupy.ascontiguousarray(b)
+124c136
+<             workspace = cuda.cupy.empty((workspace_size,), dtype='b')
+---
+>             workspace = cupy.empty((workspace_size,), dtype='b')
+198c210
+<         gW = cuda.cupy.empty_like(W)
+---
+>         gW = cupy.empty_like(W)
+201,203c213,215
+<             x = cuda.cupy.ascontiguousarray(x)
+<             W = cuda.cupy.ascontiguousarray(W)
+<             gy = cuda.cupy.ascontiguousarray(gy)
+---
+>             x = cupy.ascontiguousarray(x)
+>             W = cupy.ascontiguousarray(W)
+>             gy = cupy.ascontiguousarray(gy)
+211c223
+<             gx = cuda.cupy.empty_like(x)
+---
+>             gx = cupy.empty_like(x)
+215c227
+<                 workspace = cuda.cupy.empty((workspace_size,), dtype='b')
+---
+>                 workspace = cupy.empty((workspace_size,), dtype='b')
+247c259
+<                 gb = cuda.cupy.empty_like(b)
+---
+>                 gb = cupy.empty_like(b)
+258c270
+<                 gW_mat += cuda.cupy.dot(gy_mats[i], col_mats[i].T)
+---
+>                 gW_mat += cupy.dot(gy_mats[i], col_mats[i].T)
+263c275
+<             gcol = cuda.cupy.empty_like(self.col)
+---
+>             gcol = cupy.empty_like(self.col)
+267c279
+<                 gcol_mats[i] = cuda.cupy.dot(Wb_mat.T, gy_mats[i])
+---
+>                 gcol_mats[i] = cupy.dot(Wb_mat.T, gy_mats[i])
+diff -r GUINNESS/gen_cpp_code_v3.py GUINNESS_on_colab/gen_cpp_code_v3.py
+27a28
+> # print(config)
+63a65
+> # print(counter)
+64a67
+> 	# print(layer_type, cnt)
+295a299,380
+> # output the header file weight.h including the weight and bias mem
+> 
+> conv_idx = 0
+> bn_idx = 0
+> dense_idx = 0
+> offset_weight = 0
+> offset_bias = 0
+> 
+> print_weight_mem = ''
+> print_bias_mem = ''
+> extern_weight_mem = ''
+> extern_bias_mem = ''
+> 
+> for i in range(len(initial_options)):
+> 	if initial_options[i] == 0 or initial_options[i] == 1:
+> 		print_weight_mem += '    fprintf(fp, "ap_int<%d>  conv%dW[%d][3*3] = {");\n' % (int(n_in_fmaps[i]),conv_idx,int(n_ou_fmaps[i]))
+> 		extern_weight_mem += 'extern ap_int<%d>  conv%dW[%d][3*3];\n' % (int(n_in_fmaps[i]),conv_idx,int(n_ou_fmaps[i]))
+> 		if initial_options[i] == 0:
+> 			print_bias_mem += '    fprintf(fp, "ap_int<20> b%d_BNFb[%d] = {");\n' % (bn_idx,int(n_ou_fmaps[i]))
+> 			extern_bias_mem += 'extern ap_int<20> b%d_BNFb[%d];\n' % (bn_idx,int(n_ou_fmaps[i]))
+> 		else:
+> 			print_bias_mem += '    fprintf(fp, "ap_int<16> b%d_BNFb[%d] = {");\n' % (bn_idx,int(n_ou_fmaps[i]))
+> 			extern_bias_mem += 'extern ap_int<16> b%d_BNFb[%d];\n' % (bn_idx,int(n_ou_fmaps[i]))
+> 
+> 		print_weight_mem += '    for( x = 0; x < %d; x++){\n' % int(n_ou_fmaps[i])
+> 		print_weight_mem += '        fprintf(fp, "{");\n'
+> 		print_weight_mem += '        for( y = 0; y < 3*3; y++){\n'
+> 		print_weight_mem += '            fprintf(fp, "ap_int<{}>(\\"%s\\", 2)", conv{}W[x][y].to_string(2).c_str());\n'.format(int(n_in_fmaps[i]), conv_idx)
+> 		print_weight_mem += '            if (y != 3*3-1) fprintf(fp, ",");\n'
+> 		print_weight_mem += '        }\n'
+> 		print_weight_mem += '        fprintf(fp, "}");\n'
+> 		print_weight_mem += '        if (x != %d-1) fprintf(fp, ",");\n' % int(n_ou_fmaps[i])
+> 		print_weight_mem += '    }\n'
+> 		print_weight_mem += '    fprintf(fp, "};%s");\n' % r"\n"
+> 
+> 		print_bias_mem += '    for( x = 0; x < %d; x++){\n' % int(n_ou_fmaps[i])
+> 		if initial_options[i] == 0:
+> 			print_bias_mem += '        fprintf(fp, "ap_int<20>(\\"%s\\", 2)", b{}_BNFb[x].to_string(2).c_str());\n'.format(bn_idx)
+> 		else:
+> 			print_bias_mem += '        fprintf(fp, "ap_int<16>(\\"%s\\", 2)", b{}_BNFb[x].to_string(2).c_str());\n'.format(bn_idx)
+> 		print_bias_mem += '        if (x != %d-1) fprintf(fp, ",");\n' % int(n_ou_fmaps[i])
+> 		print_bias_mem += '    }\n'
+> 		print_bias_mem += '    fprintf(fp, "};%s");\n' % r"\n"
+> 
+> 		conv_idx += 1
+> 		bn_idx += 1
+> 		offset_weight += (int(n_in_fmaps[i]) * int(n_ou_fmaps[i]) * 3 * 3)
+> 		offset_bias += int(n_ou_fmaps[i])
+> 
+> 	elif initial_options[i] == 4:
+> 		print_weight_mem += '    fprintf(fp, "ap_int<1>  fc%dW[%d][%d] = {");\n' % (dense_idx,int(n_ou_fmaps[i]),int(n_in_fmaps[i]))
+> 		extern_weight_mem += 'extern ap_int<1>  fc%dW[%d][%d];\n' % (dense_idx,int(n_ou_fmaps[i]),int(n_in_fmaps[i]))
+> 		print_bias_mem += '    fprintf(fp, "ap_int<16> b%d_BNFb[%d] = {");\n' % (bn_idx,int(n_ou_fmaps[i]))
+> 		extern_bias_mem += 'extern ap_int<16> b%d_BNFb[%d];\n' % (bn_idx,int(n_ou_fmaps[i]))
+> 
+> 		print_weight_mem += '    for( x = 0; x < %d; x++){\n' % int(n_ou_fmaps[i])
+> 		print_weight_mem += '        fprintf(fp, "{");\n'
+> 		print_weight_mem += '        for( y = 0; y < %d; y++){\n' % int(n_in_fmaps[i])
+> 		print_weight_mem += '            fprintf(fp, "ap_int<1>(\\"%s\\", 2)", fc{}W[x][y].to_string(2).c_str());\n'.format(dense_idx)
+> 		print_weight_mem += '            if (y != %d-1) fprintf(fp, ",");\n' % int(n_in_fmaps[i])
+> 		print_weight_mem += '        }\n'
+> 		print_weight_mem += '        fprintf(fp, "}");\n'
+> 		print_weight_mem += '        if (x != %d-1) fprintf(fp, ",");\n' % int(n_ou_fmaps[i])
+> 		print_weight_mem += '    }\n'
+> 		print_weight_mem += '    fprintf(fp, "};%s");\n' % r"\n"
+> 
+> 		print_bias_mem += '    for( x = 0; x < %d; x++){\n' % int(n_ou_fmaps[i])
+> 		print_bias_mem += '        fprintf(fp, "ap_int<16>(\\"%s\\", 2)", b{}_BNFb[x].to_string(2).c_str());\n'.format(bn_idx)
+> 		print_bias_mem += '        if (x != %d-1) fprintf(fp, ",");\n' % int(n_ou_fmaps[i])
+> 		print_bias_mem += '    }\n'
+> 		print_bias_mem += '    fprintf(fp, "};%s");\n' % r"\n"
+> 
+> 		dense_idx += 1
+> 		bn_idx += 1
+> 		offset_weight += (int(n_in_fmaps[i]) * int(n_ou_fmaps[i]))
+> 		offset_bias += int(n_ou_fmaps[i])
+> 
+> # print(print_weight_mem)
+> # print(print_bias_mem)
+> # print(extern_weight_mem)
+> # print(extern_bias_mem)
+> 
+333a419,422
+> cnn_file = args.config_path + "/HLS/cnn.cpp"
+> with open(cnn_file,'w') as f:
+> 	f.write(cpp_file)
+> 
+365a455,459
+>     converted = converted.replace("(PRINT_WEIGHT_MEM)",print_weight_mem)
+>     converted = converted.replace("(PRINT_BIAS_MEM)",print_bias_mem)
+>     converted = converted.replace("(EXTERN_WEIGHT_MEM)",extern_weight_mem)
+>     converted = converted.replace("(EXTERN_BIAS_MEM)",extern_bias_mem)
+> 
+368a463,466
+> with open(cnn_file,'w') as f:
+> 	f.write(cpp_file)
+> 
+> cnn_file = args.config_path + "/HLS/main.cpp"
+Only in GUINNESS_on_colab: gen_separate_data.py
+Only in GUINNESS: .git
+diff -r GUINNESS/guinness.py GUINNESS_on_colab/guinness.py
+21,23c21,23
+< from PyQt4 import QtGui, QtCore
+< from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
+< from matplotlib.figure import Figure
+---
+> #from PyQt4 import QtGui, QtCore
+> #from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
+> #from matplotlib.figure import Figure
+29a30,34
+> import argparse
+> 
+> python = "python3"
+> #batch_size = str(20)
+> batch_size = str(100)
+37,39c42,45
+< class Layout(QtGui.QWidget):
+<     def __init__(self):
+<         super(Layout,self).__init__()
+---
+> #class Layout(QtGui.QWidget):
+> class CUINNESS:
+>     def __init__(self, projectName, td_label, tl_label, epoch, netName='VGG9ave', optimizer='Adam', useGPU=True, board='zed', batchSize='100'):
+>         super(CUINNESS,self).__init__()
+44a51
+>         global batch_size
+49a57
+>         batch_size = batchSize
+51,122c59,67
+<         self.setMyself()
+<         self.set_project_name()
+<         self.show()
+< 
+<     def setMyself(self):
+<         self.setGeometry(50,50,1100,600)
+<         self.setWindowTitle("GUINNESS: A GUI based Neural NEtwork SyntheSizer")
+< 
+<     def set_project_name(self):
+<         ##################################################################
+<         # Left Column
+<         ##################################################################
+<         vbox_left_column = QtGui.QVBoxLayout()
+< #        vbox_left_column.setGeometry(QtCore.QRect(0,0,800,24))
+< 
+<         # project setup --------------------------------------------------
+<         project_setup_box = QtGui.QGroupBox("1. Project Setup")
+<         project = QtGui.QLabel('Project Name')
+<         self.projectEdit = QtGui.QLineEdit()
+<         self.projectEdit.setText('Project1')
+< 
+<         hbox = QtGui.QHBoxLayout()
+<         hbox.addWidget(project)
+<         hbox.addWidget(self.projectEdit)
+< 
+<         vbox_proj = QtGui.QVBoxLayout()
+<         vbox_proj.addLayout(hbox)
+< 
+<         ProjSaveButton = QtGui.QPushButton("SAVE")
+<         self.connect(ProjSaveButton,QtCore.SIGNAL('clicked()'),self.SaveProj)
+<         ProjLoadButton = QtGui.QPushButton("LOAD")
+<         self.connect(ProjLoadButton,QtCore.SIGNAL('clicked()'),self.LoadProj)
+<         hbox_proj = QtGui.QHBoxLayout()
+<         hbox_proj.addWidget(ProjSaveButton)
+<         hbox_proj.addWidget(ProjLoadButton)
+<         vbox_proj.addLayout(hbox_proj)
+< 
+<         project_setup_box.setLayout(vbox_proj)
+<         vbox_left_column.addWidget(project_setup_box)
+< 
+<         # cnn setup table ------------------------------------------------
+<         cnn_setup_box = QtGui.QGroupBox("2. CNN Specificaion")
+< 
+<         vbox_cnn = QtGui.QVBoxLayout()
+< 
+<         cnntype = QtGui.QLabel('Type')
+<         self.combo1 = QtGui.QComboBox()
+<         self.combo1.addItem("LeNet5")
+<         self.combo1.addItem("TinyCNN")
+<         self.combo1.addItem("VGG9ave")
+<         self.combo1.addItem("VGG11ave")
+<         self.combo1.addItem("VGG16ave")
+<         self.combo1.addItem("VGG19ave")
+<         LoadButton = QtGui.QPushButton("LOAD CONFIG")
+<         self.connect(LoadButton,QtCore.SIGNAL('clicked()'),self.LoadConfig)
+<         hbox2 = QtGui.QHBoxLayout()
+<         hbox2.addWidget(cnntype)
+<         hbox2.addWidget(self.combo1)
+<         hbox2.addWidget(LoadButton)
+< 
+<         vbox_cnn.addLayout(hbox2)
+< 
+<         self.table = QtGui.QTableWidget()
+<         self.table.setColumnCount(5)
+< 
+<         labels = ["Type","In #Fmaps","Out #Fmaps","In Fsiz","Train?"]
+<         self.table.setHorizontalHeaderLabels(labels);
+<         self.table.setColumnWidth(0, 90);
+<         self.table.setColumnWidth(1, 80);
+<         self.table.setColumnWidth(2, 80);
+<         self.table.setColumnWidth(3, 50);
+<         self.table.setColumnWidth(4, 50);
+---
+>         self.projectName = projectName
+>         self.td_label = td_label
+>         self.tl_label = tl_label
+>         self.n_trains_Edit = epoch
+> 
+>         self.netName = netName
+>         self.optimizer = optimizer
+>         self.useGPU = useGPU
+>         self.board = board
+125,330c70,76
+< 
+<         self.table.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+<         self.table.customContextMenuRequested.connect(self.contextMenu_)
+< 
+<         vbox_cnn.addWidget(self.table)
+<         cnn_setup_box.setLayout(vbox_cnn)
+<         vbox_left_column.addWidget(cnn_setup_box)
+< 
+<         ##################################################################
+<         # Right Column
+<         ##################################################################
+<         vbox_right_column = QtGui.QVBoxLayout()
+< 
+<         training_setup_box = QtGui.QGroupBox("3. Training")
+<         vbox_training = QtGui.QVBoxLayout()
+<         # parameters for traning -----------------------------------------
+<         # training data
+<         tdlabel = QtGui.QLabel('Training Data')
+<         ld_button = QtGui.QPushButton("Load")
+<         ld_button.clicked.connect(self.open_FileDialog)
+<         self.td_label = QtGui.QLineEdit("image.pkl")
+< 
+<         hbox_td = QtGui.QHBoxLayout()
+<         hbox_td.addWidget(tdlabel) 
+<         hbox_td.addWidget(ld_button) 
+<         hbox_td.addWidget(self.td_label)
+<         vbox_training.addLayout(hbox_td)
+< 
+<         # training label
+<         tllabel = QtGui.QLabel('Training Label')
+<         ll_button = QtGui.QPushButton("Load")
+<         ll_button.clicked.connect(self.open_FileDialog_tl)
+<         self.tl_label = QtGui.QLineEdit("label.pkl") 
+< 
+<         hbox_tl = QtGui.QHBoxLayout()
+<         hbox_tl.addWidget(tllabel) 
+<         hbox_tl.addWidget(ll_button) 
+<         hbox_tl.addWidget(self.tl_label)
+<         vbox_training.addLayout(hbox_tl)
+< 
+<         # # of training
+<         n_trains = QtGui.QLabel('Number of traning')
+<         self.n_trains_Edit = QtGui.QLineEdit()
+<         self.n_trains_Edit.setText("10")
+< 
+<         hbox_ntrain = QtGui.QHBoxLayout()
+<         hbox_ntrain.addWidget(n_trains)
+<         hbox_ntrain.addWidget(self.n_trains_Edit)
+< 
+<         vbox_training.addLayout(hbox_ntrain)
+< 
+<         # optimizer
+<         hbox3 = QtGui.QHBoxLayout()
+<         cnntype = QtGui.QLabel('Optimizer')        
+<         self.b11=QtGui.QRadioButton("SGD")
+<         self.b11.setChecked(True)
+<         self.b12=QtGui.QRadioButton("Adam")
+<         bg1=QtGui.QButtonGroup()
+<         bg1.addButton(self.b11)
+<         bg1.addButton(self.b12)
+<         hbox3.addWidget(cnntype)
+<         hbox3.addWidget(self.b11)
+<         hbox3.addWidget(self.b12)
+< 
+<         vbox_training.addLayout(hbox3)
+< 
+<         # Use GPU?
+<         self.cb = QtGui.QCheckBox('Use GPU')
+<         self.cb.setChecked(True)
+<         vbox_training.addWidget(self.cb)
+< 
+<         # message
+<         train_process = QtGui.QLabel('Training Process View')
+<         vbox_training.addWidget(train_process)
+< 
+<         # matplotlib
+<         self.canvas = Canvas()
+< 
+<         self.canvas.refresh(int(self.n_trains_Edit.text()))
+< 
+<         vbox_training.addWidget(self.canvas)
+<         
+<         # training button
+<         hbox_control = QtGui.QHBoxLayout()
+<         self.bstart=QtGui.QPushButton("Start Training")
+<         bg1.addButton(self.bstart)
+<         self.bstart.clicked.connect(self.start_training)
+<         bstop=QtGui.QPushButton("Stop Training")
+<         bstop.setVisible(False)
+<         bg1.addButton(bstop)
+<         hbox_control.addWidget(self.bstart)
+<         hbox_control.addWidget(bstop)
+< 
+<         vbox_training.addLayout(hbox_control)
+<         training_setup_box.setLayout(vbox_training)
+<         vbox_right_column.addWidget(training_setup_box)
+< 
+<         # FPGA implementation ------------------------------------------------
+<         # Select fpga board
+<         fpga_setup_box = QtGui.QGroupBox("4. C/C++ Code Generation for FPGA Implementation")
+<         vbox_fpga = QtGui.QVBoxLayout()
+< 
+<         fpgaboard = QtGui.QLabel('Target FPGA Board')
+<         self.combo2 = QtGui.QComboBox()
+<         self.combo2.addItem("zed")
+<         self.combo2.addItem("zybo")
+<         self.combo2.addItem("zc702")
+<         self.combo2.addItem("zcu102")
+<         hbox3 = QtGui.QHBoxLayout()
+<         hbox3.addWidget(fpgaboard)
+<         hbox3.addWidget(self.combo2)
+< 
+<         vbox_fpga.addLayout(hbox3)
+< 
+< #        # Setup Clock Frequency
+< #        clkfreq = QtGui.QLabel('Clock Frequency (MHz)')
+< #        combo3 = QtGui.QComboBox()
+< #        combo3.addItem("100.0")
+< #        combo3.addItem("147.6")
+< #        combo3.addItem("150.0")
+< #        combo3.addItem("200.0")
+< #        hbox4 = QtGui.QHBoxLayout()
+< #        hbox4.addWidget(clkfreq)
+< #        hbox4.addWidget(combo3)
+< #
+< #        vbox_fpga.addLayout(hbox4)
+< 
+<         # Run Bitstream Generation
+< #        bstart_bitgen=QtGui.QPushButton("Generate Bitstream")
+<         bstart_bitgen=QtGui.QPushButton("Generate C/C++ Code")
+<         bg1.addButton(bstart_bitgen)
+<         bstart_bitgen.clicked.connect(self.start_bitgen)
+< 
+<         vbox_fpga.addWidget(bstart_bitgen)
+< 
+<         fpga_setup_box.setLayout(vbox_fpga)
+<         vbox_right_column.addWidget(fpga_setup_box)
+< 
+<         # -------------------------------------------------------
+<         # overall layout
+<         # -------------------------------------------------------
+<         hbox_global = QtGui.QHBoxLayout()
+<         hbox_global.addLayout(vbox_left_column)
+<         hbox_global.addLayout(vbox_right_column)
+< 
+<         self.setLayout(hbox_global)
+< 
+<     # -----------------------------------------------------------
+<     # Context Menu for the CNN configuration table
+<     # -----------------------------------------------------------
+<     def contextMenu_(self, event):
+<         menu = QtGui.QMenu()
+<         addAction = menu.addAction('Add layer',)
+<         delAction = menu.addAction('Delete layer',)
+< 
+<         action = menu.exec_(QtGui.QCursor.pos())
+< 
+<         initial_options = []
+<         n_in_fmaps = []
+<         n_ou_fmaps = []
+<         infmap_siz = []
+< 
+<         for i in range(self.table.rowCount()):
+<             itm1 = self.table.cellWidget(i,0)
+<             itm2 = self.table.item(i,1)
+<             itm3 = self.table.item(i,2) 
+<             itm4 = self.table.item(i,3) 
+<             val1 = itm1.currentIndex()
+<             val2 = str(itm2.text())
+<             val3 = str(itm3.text())
+<             val4 = str(itm4.text())
+< 
+<             initial_options.append(val1)
+<             n_in_fmaps.append(val2)
+<             n_ou_fmaps.append(val3)
+<             infmap_siz.append(val4)
+< 
+<         if action == addAction:
+<             initial_options.insert(self.table.currentRow(),1)
+<             n_in_fmaps.insert(self.table.currentRow(),'0')
+<             n_ou_fmaps.insert(self.table.currentRow(),'0')
+<             infmap_siz.insert(self.table.currentRow(),'0')
+< 
+<         elif action == delAction:
+<             initial_options.pop(self.table.currentRow())
+<             n_in_fmaps.pop(self.table.currentRow())
+<             n_ou_fmaps.pop(self.table.currentRow())
+<             infmap_siz.pop(self.table.currentRow())
+< 
+<         self.table.setRowCount(len(initial_options))
+<         for index in range(len(initial_options)):
+<             combo = QtGui.QComboBox()
+<             for t in self.combo_box_options:
+<                 combo.addItem(t)
+<             combo.setCurrentIndex(initial_options[index])
+<             self.table.setCellWidget(index,0,combo)
+<             item1 = QtGui.QTableWidgetItem(n_in_fmaps[index])
+<             self.table.setItem(index,1,item1)
+<             item2 = QtGui.QTableWidgetItem(n_ou_fmaps[index])
+<             self.table.setItem(index,2,item2)
+<             item3 = QtGui.QTableWidgetItem(infmap_siz[index])
+<             self.table.setItem(index,3,item3)
+< 
+<             item4 = QtGui.QCheckBox('')
+<             item4.setChecked(True) # isChecked() == True?False?
+<             self.table.setCellWidget(index,4,item4)
+---
+>         self.open_FileDialog()        
+>         self.open_FileDialog_tl()
+>         self.SaveProj()
+>         self.start_training()
+>         self.SaveProj()
+>         self.start_bitgen()
+>         self.SaveProj()
+355,362c101,106
+<         for i in range(self.table.rowCount()):
+<             itm1 = self.table.cellWidget(i,0)
+<             itm2 = self.table.item(i,1)
+<             itm3 = self.table.item(i,2) 
+<             itm4 = self.table.item(i,3) 
+<             val1 = int(itm2.text())
+<             val2 = int(itm3.text())
+<             val3 = int(itm4.text())
+---
+> 
+>         for i in range(len(self.table)):
+>             itm1 = self.table[i][0]
+>             val1 = int(self.table[i][1])
+>             val2 = int(self.table[i][2])
+>             val3 = int(self.table[i][3])
+364,366c108,112
+<             if itm1.currentText() == 'Conv(Int)':
+<                 pcode += '            conv%d=IC.Convolution2D(%d,%d,3, stride=1, pad=1, nobias=True),\n' % (conv_idx,val1,val2)
+<                 pcode += '            b%d=L.BatchNormalization(%d)' % (bn_idx,val2)
+---
+>             if itm1 == 'Conv(Int)':
+>                 #pcode += '            conv%d=IC.Convolution2D(%d,%d,3, stride=1, pad=1, nobias=True),\n' % (conv_idx,val1,val2)
+>                 #pcode += '            b%d=L.BatchNormalization(%d)' % (bn_idx,val2)
+>                 pcode += '            self.conv%d=IC.Convolution2D(%d,%d,3, stride=1, pad=1, nobias=True)\n' % (conv_idx,val1,val2)
+>                 pcode += '            self.b%d=L.BatchNormalization(%d)' % (bn_idx,val2)
+369,371c115,119
+<             elif itm1.currentText() == 'Conv(Bin)':
+<                 pcode += '            conv%d=BC.Convolution2D(%d,%d,3, stride=1, pad=1, nobias=True),\n' % (conv_idx,val1,val2)
+<                 pcode += '            b%d=L.BatchNormalization(%d)' % (bn_idx,val2)
+---
+>             elif itm1 == 'Conv(Bin)':
+>                 #pcode += '            conv%d=BC.Convolution2D(%d,%d,3, stride=1, pad=1, nobias=True),\n' % (conv_idx,val1,val2)
+>                 #pcode += '            b%d=L.BatchNormalization(%d)' % (bn_idx,val2)
+>                 pcode += '            self.conv%d=BC.Convolution2D(%d,%d,3, stride=1, pad=1, nobias=True)\n' % (conv_idx,val1,val2)
+>                 pcode += '            self.b%d=L.BatchNormalization(%d)' % (bn_idx,val2)
+374c122
+<             elif itm1.currentText() == 'Max Pool':
+---
+>             elif itm1 == 'Max Pool':
+376c124
+<             elif itm1.currentText() == 'Ave Pool':
+---
+>             elif itm1 == 'Ave Pool':
+379,380c127,130
+<                 pcode += '            fc%d=BL.BinaryLinear(%d,%d),\n' % (dense_idx,val1,val2)
+<                 pcode += '            b%d=L.BatchNormalization(%d)' % (bn_idx,val2)
+---
+>                 #pcode += '            fc%d=BL.BinaryLinear(%d,%d),\n' % (dense_idx,val1,val2)
+>                 #pcode += '            b%d=L.BatchNormalization(%d)' % (bn_idx,val2)
+>                 pcode += '            self.fc%d=BL.BinaryLinear(%d,%d)\n' % (dense_idx,val1,val2)
+>                 pcode += '            self.b%d=L.BatchNormalization(%d)' % (bn_idx,val2)
+384,385c134,136
+<             if i == self.table.rowCount() - 1:
+<                 pcode += '\n        )\n'
+---
+>             if i == len(self.table) - 1:
+>                 #pcode += '\n        )\n'
+>                 pcode += '\n'
+387c138
+<                 if itm1.currentText() == 'Max Pool' or itm1.currentText() == 'Ave Pool':
+---
+>                 if itm1 == 'Max Pool' or itm1 == 'Ave Pool':
+390c141,142
+<                     pcode += ',\n'
+---
+>                     #pcode += ',\n'
+>                     pcode += '\n'
+397,404c149,154
+<         for i in range(self.table.rowCount()):
+<             itm1 = self.table.cellWidget(i,0)
+<             itm2 = self.table.item(i,1)
+<             itm3 = self.table.item(i,2) 
+<             itm4 = self.table.item(i,3) 
+<             val1 = int(itm2.text())
+<             val2 = int(itm3.text())
+<             val3 = int(itm4.text())
+---
+> 
+>         for i in range(len(self.table)):
+>             itm1 = self.table[i][0]
+>             val1 = int(self.table[i][1])
+>             val2 = int(self.table[i][2])
+>             val3 = int(self.table[i][3])
+406c156
+<             if itm1.currentText() == 'Conv(Int)':
+---
+>             if itm1 == 'Conv(Int)':
+410c160
+<             elif itm1.currentText() == 'Conv(Bin)':
+---
+>             elif itm1 == 'Conv(Bin)':
+414c164
+<             elif itm1.currentText() == 'Max Pool':
+---
+>             elif itm1 == 'Max Pool':
+416c166
+<             elif itm1.currentText() == 'Ave Pool':
+---
+>             elif itm1 == 'Ave Pool':
+419c169
+<                 if i < self.table.rowCount() - 1:
+---
+>                 if i < len(self.table) - 1:
+443c193
+<         project_dir = "./" + self.projectEdit.text()
+---
+>         project_dir = "./" + self.projectName
+448c198
+<         fname = "./" + self.projectEdit.text() + '/net3.py'
+---
+>         fname = "./" + self.projectName + '/net3.py'
+453c203
+<         fname = "./" + self.projectEdit.text() + '/eval.py'
+---
+>         fname = "./" + self.projectName + '/eval.py'
+458c208
+<         n_iter = int(self.n_trains_Edit.text())
+---
+>         n_iter = int(self.n_trains_Edit)
+460,462c210,212
+<         train_dataset = self.td_label.text()
+<         label_dataset = self.tl_label.text()
+<         if self.b11.isChecked() == True:
+---
+>         train_dataset = self.td_label
+>         label_dataset = self.tl_label
+>         if self.optimizer == 'SDG':
+466d215
+< 
+469c218
+<         project_dir = "./" + self.projectEdit.text()
+---
+>         project_dir = "./" + self.projectName
+474c223
+<         if self.cb.isChecked() == True:
+---
+>         if self.useGPU == True:
+488c237
+<             model_file = "./" + self.projectEdit.text() + '/temp.model'
+---
+>             model_file = "./" + self.projectName + '/temp.model'
+498c247
+<             log_file = "./" + self.projectEdit.text() + '/temp_log.csv'
+---
+>             log_file = "./" + self.projectName + '/temp_log.csv'
+513c262,263
+<         subprocess.Popen(["python","train.py","-g",gpu,"--iter",str(n_iter),"--dim",str(n_dim),"--siz",str(img_siz),"--dataset",train_dataset,"--label",label_dataset,"--optimizer",optimizer_alg,"--prefix",project_name,"--lr_decay_iter","100","--resume",resume]) # background job = python train.py &
+---
+>         #subprocess.Popen(["time",python,"train.py","-g",gpu,"--iter",str(n_iter),"--dim",str(n_dim),"--siz",str(img_siz),"--dataset",train_dataset,"--label",label_dataset,"--optimizer",optimizer_alg,"--prefix",project_name,"--lr_decay_iter","100","--resume",resume,"--batch_size",batch_size]) # background job = python train.py &
+>         subprocess.run([python,"train.py","-g",gpu,"--iter",str(n_iter),"--dim",str(n_dim),"--siz",str(img_siz),"--dataset",train_dataset,"--label",label_dataset,"--optimizer",optimizer_alg,"--prefix",project_name,"--lr_decay_iter","100","--resume",resume,"--batch_size",batch_size]) # background job = python train.py &
+519,520c269,270
+<         # eliminate training start button
+<         self.bstart.setVisible(False)
+---
+>         # # eliminate training start button
+>         # self.bstart.setVisible(False)
+522,525c272,281
+<         # Start training check process
+<         self.timer = QtCore.QTimer(self)
+<         self.timer.timeout.connect(self.updateCanvas)
+<         self.timer.start(1000)
+---
+>         # # Start training check process
+>         # self.timer = QtCore.QTimer(self)
+>         # self.timer.timeout.connect(self.updateCanvas)
+>         # self.timer.start(1000)
+>         print("[INFO] FINISH TRAINING")
+>         subprocess.run(["cp","temp.model","./" + self.projectName]) # background job = python train.py &
+>         subprocess.run(["cp","temp_log.csv","./" + self.projectName]) # background job = python train.py &
+>         subprocess.run(["cp","build.tcl","./" + self.projectName])
+>         is_load_pretrain = 1
+>         #self.updateCanvas()
+544,545c300,301
+<                 self.canvas.push_data(train_acc,test_acc,train_loss,test_loss)
+<                 self.canvas.refresh(n_lines_in_logfile - 1)
+---
+>                 #self.canvas.push_data(train_acc,test_acc,train_loss,test_loss)
+>                 #self.canvas.refresh(n_lines_in_logfile - 1)
+549,561c305,321
+< 
+<             if status != 'run':
+<                 print("[INFO] FINISH TRAINING")
+<                 project_path = "./" + self.projectEdit.text()
+<                 subprocess.Popen(["cp","temp.model",project_path]) # background job = python train.py &
+<                 subprocess.Popen(["cp","temp_log.csv",project_path]) # background job = python train.py &
+<                 self.timer.stop()
+<                 ret = QtGui.QMessageBox.information(None, "Training Status", "Training Finished")
+< 
+<                 # set continue training mode
+<                 self.bstart.setVisible(True)
+<                 self.bstart.setText('Continue Training')
+<                 is_load_pretrain = 1
+---
+>             print("[INFO] FINISH TRAINING")
+>             project_path = "./" + self.projectName
+>             subprocess.run(["cp","temp.model",project_path]) # background job = python train.py &
+>             subprocess.run(["cp","temp_log.csv",project_path]) # background job = python train.py &
+>             is_load_pretrain = 1
+>             # if status != 'run':
+>             #     print("[INFO] FINISH TRAINING")
+>             #     project_path = "./" + self.projectName
+>             #     subprocess.run(["cp","temp.model",project_path]) # background job = python train.py &
+>             #     subprocess.run(["cp","temp_log.csv",project_path]) # background job = python train.py &
+>             #     #self.timer.stop()
+>             #     #ret = QtGui.QMessageBox.information(None, "Training Status", "Training Finished")
+> 
+>             #     # set continue training mode
+>             #     #self.bstart.setVisible(True)
+>             #     #self.bstart.setText('Continue Training')
+>             #     is_load_pretrain = 1
+569c329,330
+<         print("TARGET DEVICE: %s" % self.combo2.currentText())
+---
+>         #print("TARGET DEVICE: %s" % self.combo2.currentText())
+>         print("TARGET DEVICE: %s" % self.board)
+585,592c346,350
+<         for i in range(self.table.rowCount()):
+<             itm1 = self.table.cellWidget(i,0)
+<             itm2 = self.table.item(i,1)
+<             itm3 = self.table.item(i,2) 
+<             itm4 = self.table.item(i,3) 
+<             val1 = str(itm2.text())
+<             val2 = str(itm3.text())
+<             val3 = str(itm4.text())
+---
+>         for i in range(len(self.table)):
+>             itm1 = self.combo_box_options.index(self.table[i][0])
+>             val1 = str(self.table[i][1])
+>             val2 = str(self.table[i][2])
+>             val3 = str(self.table[i][3])
+594c352
+<             if itm1.currentIndex() == 4:
+---
+>             if itm1 == 4:
+598c356
+<             if itm1.currentIndex() == 0 or itm1.currentIndex() == 1 or itm1.currentIndex() == 4:
+---
+>             if itm1 == 0 or itm1 == 1 or itm1 == 4:
+601c359
+<             if itm1.currentIndex() == 1:
+---
+>             if itm1 == 1:
+605c363
+<             if itm1.currentIndex() == 0 or itm1.currentIndex() == 1:
+---
+>             if itm1 == 0 or itm1 == 1:
+608c366
+<             if itm1.currentIndex() == 4:
+---
+>             if itm1 == 4:
+611c369
+<             initial_options.append(itm1.currentIndex())
+---
+>             initial_options.append(itm1)
+630c388
+<         config_file = "./" + self.projectEdit.text() + "/config.pickle"
+---
+>         config_file = "./" + self.projectName + "/config.pickle"
+640c398,399
+<         print("TARGET DEVICE: %s" % self.combo2.currentText())
+---
+>         #print("TARGET DEVICE: %s" % self.combo2.currentText())
+>         print("TARGET DEVICE: %s" % self.board)
+647c406
+<         sdsoc_dir = "./" + self.projectEdit.text() + "/sdsoc"
+---
+>         sdsoc_dir = "./" + self.projectName + "/sdsoc"
+650a410,415
+>         # generate HLS directory
+>         print("[INFO] MAKE A DIRECTROY: ./%s/HLS" % self.projectName)
+>         HLS_dir = "./" + self.projectName + "/HLS"
+>         if os.path.exists(HLS_dir) == False:
+>             os.mkdir(HLS_dir)
+> 
+653c418
+<         config_path = "./" + self.projectEdit.text()
+---
+>         config_path = "./" + self.projectName
+655c420,421
+<         subprocess.Popen(["python","gen_cpp_code_v3.py","--config_path",config_path]) # background job = python train.py &
+---
+>         #subprocess.Popen([python,"gen_cpp_code_v3.py","--config_path",config_path]) # background job = python train.py &
+>         subprocess.run([python,"gen_cpp_code_v3.py","--config_path",config_path]) # background job = python train.py &
+667,668c433,435
+<             tmp = tmp.replace("(ELF_FILE_PATH)",self.projectEdit.text() + ".elf")
+<             tmp = tmp.replace("(TARGET_BOARD)",self.combo2.currentText())
+---
+>             tmp = tmp.replace("(ELF_FILE_PATH)",self.projectName + ".elf")
+>             #tmp = tmp.replace("(TARGET_BOARD)",self.combo2.currentText())
+>             tmp = tmp.replace("(TARGET_BOARD)",self.board)
+672c439
+<         makefile_name = "./" + self.projectEdit.text() + "/sdsoc/Makefile"
+---
+>         makefile_name = "./" + self.projectName + "/sdsoc/Makefile"
+677,678c444,445
+<         print("[INFO] MAKE A DIRECTROY: ./%s/sdsoc/to_sd_card" % self.projectEdit.text())
+<         sd_card_dir = "./" + self.projectEdit.text() + "/sdsoc/to_sd_card"
+---
+>         print("[INFO] MAKE A DIRECTROY: ./%s/sdsoc/to_sd_card" % self.projectName)
+>         sd_card_dir = "./" + self.projectName + "/sdsoc/to_sd_card"
+683,684c450,451
+<         print("[INFO] MAKE A DIRECTROY: ./%s/HLS" % self.projectEdit.text())
+<         HLS_dir = "./" + self.projectEdit.text() + "/HLS"
+---
+>         print("[INFO] MAKE A DIRECTROY: ./%s/HLS_old" % self.projectName)
+>         HLS_dir = "./" + self.projectName + "/HLS_old"
+690,692c457,460
+<         config_path = "./" + self.projectEdit.text()
+<         proc = subprocess.Popen(["python","conv_npz2txt_v2.py","--config_path",config_path]) # background job = python train.py &
+<         proc.wait()
+---
+>         config_path = "./" + self.projectName
+>         #proc = subprocess.Popen([python,"conv_npz2txt_v2.py","--config_path",config_path]) # background job = python train.py &
+>         proc = subprocess.run([python,"conv_npz2txt_v2.py","--config_path",config_path]) # background job = python train.py &
+>         #proc.wait()
+700,701c468,470
+<             sd_card_dir = "./" + self.projectEdit.text() + "/sdsoc/to_sd_card"
+<             subprocess.Popen(["cp",image_file,sd_card_dir])
+---
+>             sd_card_dir = "./" + self.projectName + "/sdsoc/to_sd_card"
+>             #subprocess.Popen(["cp",image_file,sd_card_dir])
+>             subprocess.run(["cp",image_file,sd_card_dir])
+721,725c490,494
+<         config += 'PROJECT_NAME: %s\n' % self.projectEdit.text()
+<         config += 'TRAINING_DATA: %s\n' % self.td_label.text()
+<         config += 'TRAINING_LABEL: %s\n' % self.tl_label.text()
+<         config += 'NUM_OF_EPOCS: %d\n' % int(self.n_trains_Edit.text())
+<         if self.b11.isChecked() == True:
+---
+>         config += 'PROJECT_NAME: %s\n' % self.projectName
+>         config += 'TRAINING_DATA: %s\n' % self.td_label
+>         config += 'TRAINING_LABEL: %s\n' % self.tl_label
+>         config += 'NUM_OF_EPOCS: %d\n' % int(self.n_trains_Edit)
+>         if self.optimizer == 'SGD':
+729c498
+<         if self.cb.isChecked() == True:
+---
+>         if self.useGPU == True:
+733c502
+<         config += 'FPGA_BOARD: %s\n' % self.combo2.currentText()
+---
+>         config += 'FPGA_BOARD: %s\n' % self.board
+735,736c504,505
+<         config_file = "./" + self.projectEdit.text() + "/" + self.projectEdit.text() + ".proj"
+<         config_dir = "./" + self.projectEdit.text()
+---
+>         config_file = "./" + self.projectName + "/" + self.projectName + ".proj"
+>         config_dir = "./" + self.projectName
+745,748c514,517
+<     # load project configuration file
+<     def LoadProj(self):
+<         global is_load_pretrain
+<         filename = QtGui.QFileDialog.getOpenFileName(self, 'File Open', './')
+---
+>     # # load project configuration file
+>     # def LoadProj(self):
+>     #     global is_load_pretrain
+>     #     filename = QtGui.QFileDialog.getOpenFileName(self, 'File Open', './')
+750,751c519,520
+<         with open(filename, mode='r') as f:
+<             lines2 = f.readlines()
+---
+>     #     with open(filename, mode='r') as f:
+>     #         lines2 = f.readlines()
+753,754c522,523
+<             for line in lines2:
+<                 key, val = line.split()
+---
+>     #         for line in lines2:
+>     #             key, val = line.split()
+756,840c525,609
+<                 if key == 'PROJECT_NAME:':
+<                     self.projectEdit.setText(val)
+<                 elif key == 'TRAINING_DATA:':
+<                     self.td_label.setText(val)
+<                 elif key == 'TRAINING_LABEL:':
+<                     self.tl_label.setText(val)
+<                 elif key == 'NUM_OF_EPOCS:':
+<                     self.n_trains_Edit.setText(val)
+<                 elif key == 'OPTIMIZER:':
+<                     if val == 'SGD':
+<                         self.b11.setChecked(True)
+<                         self.b12.setChecked(False)
+<                     else:
+<                         self.b11.setChecked(False)
+<                         self.b12.setChecked(True)
+<                 elif key == 'USE_GPU:':
+<                     if val == 'YES':
+<                         self.cb.setChecked(True)
+<                     else:
+<                         self.cb.setChecked(False)
+<                 elif key == 'FPGA_BOARD:':
+<                     if val == 'zed':
+<                         idx = 0
+<                     elif val == 'zybo':
+<                         idx = 1
+<                     elif val == 'vc702':
+<                         idx = 2
+<                     else: # zcu102
+<                         idx = 3
+<                     self.combo2.setCurrentIndex(idx)
+<                 else:
+<                     pass        
+< 
+<         # Restore CNN Configuration Table
+<         config_file = "./" + self.projectEdit.text() + "/config.pickle"
+<         with open(config_file, mode='rb') as f:
+<             config = pickle.load(f)
+< 
+<         initial_options = config['initial_options']
+<         n_in_fmaps = config['n_in_fmaps']
+<         n_ou_fmaps = config['n_ou_fmaps']
+<         infmap_siz = config['infmap_siz']
+< 
+<         self.table.setRowCount(len(initial_options))
+<         for index in range(len(initial_options)):
+<             combo = QtGui.QComboBox()
+<             for t in self.combo_box_options:
+<                 combo.addItem(t)
+<             combo.setCurrentIndex(initial_options[index])
+<             self.table.setCellWidget(index,0,combo)
+<             item1 = QtGui.QTableWidgetItem(n_in_fmaps[index])
+<             self.table.setItem(index,1,item1)
+<             item2 = QtGui.QTableWidgetItem(n_ou_fmaps[index])
+<             self.table.setItem(index,2,item2)
+<             item3 = QtGui.QTableWidgetItem(infmap_siz[index])
+<             self.table.setItem(index,3,item3)
+< 
+<             item4 = QtGui.QCheckBox('')
+<             item4.setChecked(True) # isChecked() == True?False?
+<             self.table.setCellWidget(index,4,item4)
+< 
+< 
+<         # Restore Training Status Graph
+<         log_file = "temp_log.csv"
+<         log_path = "./" + self.projectEdit.text() + "/" + log_file
+< 
+<         if( os.path.exists(log_path) == True):
+<             print("log_file %s" % log_path)
+< 
+<             subprocess.call(["cp",log_path,"./"])
+< 
+<             train_loss,train_acc,test_loss,test_acc = np.loadtxt(log_file, delimiter=',', skiprows=1,usecols=(1,2,5,6),unpack=True)
+<             self.canvas.push_data(train_acc,test_acc,train_loss,test_loss)
+<             self.canvas.refresh(int(self.n_trains_Edit.text()))
+< 
+<             subprocess.call(["rm","-rf",log_file])
+< 
+<         is_load_pretrain = 1
+<         self.bstart.setText('Continue Training')
+< 
+<         # Restore Global Variables
+<         global img_siz 
+<         img_siz = int(config['imgsiz'])
+<         global n_class 
+<         n_class = int(n_ou_fmaps[len(initial_options) - 1])
+---
+>     #             if key == 'PROJECT_NAME:':
+>     #                 self.projectName.setText(val)
+>     #             elif key == 'TRAINING_DATA:':
+>     #                 self.td_label.setText(val)
+>     #             elif key == 'TRAINING_LABEL:':
+>     #                 self.tl_label.setText(val)
+>     #             elif key == 'NUM_OF_EPOCS:':
+>     #                 self.n_trains_Edit.setText(val)
+>     #             elif key == 'OPTIMIZER:':
+>     #                 if val == 'SGD':
+>     #                     self.b11.setChecked(True)
+>     #                     self.b12.setChecked(False)
+>     #                 else:
+>     #                     self.b11.setChecked(False)
+>     #                     self.b12.setChecked(True)
+>     #             elif key == 'USE_GPU:':
+>     #                 if val == 'YES':
+>     #                     self.cb.setChecked(True)
+>     #                 else:
+>     #                     self.cb.setChecked(False)
+>     #             elif key == 'FPGA_BOARD:':
+>     #                 if val == 'zed':
+>     #                     idx = 0
+>     #                 elif val == 'zybo':
+>     #                     idx = 1
+>     #                 elif val == 'vc702':
+>     #                     idx = 2
+>     #                 else: # zcu102
+>     #                     idx = 3
+>     #                 self.combo2.setCurrentIndex(idx)
+>     #             else:
+>     #                 pass        
+> 
+>     #     # Restore CNN Configuration Table
+>     #     config_file = "./" + self.projectName + "/config.pickle"
+>     #     with open(config_file, mode='rb') as f:
+>     #         config = pickle.load(f)
+> 
+>     #     initial_options = config['initial_options']
+>     #     n_in_fmaps = config['n_in_fmaps']
+>     #     n_ou_fmaps = config['n_ou_fmaps']
+>     #     infmap_siz = config['infmap_siz']
+> 
+>     #     self.table.setRowCount(len(initial_options))
+>     #     for index in range(len(initial_options)):
+>     #         combo = QtGui.QComboBox()
+>     #         for t in self.combo_box_options:
+>     #             combo.addItem(t)
+>     #         combo.setCurrentIndex(initial_options[index])
+>     #         self.table.setCellWidget(index,0,combo)
+>     #         item1 = QtGui.QTableWidgetItem(n_in_fmaps[index])
+>     #         self.table.setItem(index,1,item1)
+>     #         item2 = QtGui.QTableWidgetItem(n_ou_fmaps[index])
+>     #         self.table.setItem(index,2,item2)
+>     #         item3 = QtGui.QTableWidgetItem(infmap_siz[index])
+>     #         self.table.setItem(index,3,item3)
+> 
+>     #         item4 = QtGui.QCheckBox('')
+>     #         item4.setChecked(True) # isChecked() == True?False?
+>     #         self.table.setCellWidget(index,4,item4)
+> 
+> 
+>     #     # Restore Training Status Graph
+>     #     log_file = "temp_log.csv"
+>     #     log_path = "./" + self.projectName + "/" + log_file
+> 
+>     #     if( os.path.exists(log_path) == True):
+>     #         print("log_file %s" % log_path)
+> 
+>     #         subprocess.call(["cp",log_path,"./"])
+> 
+>     #         train_loss,train_acc,test_loss,test_acc = np.loadtxt(log_file, delimiter=',', skiprows=1,usecols=(1,2,5,6),unpack=True)
+>     #         self.canvas.push_data(train_acc,test_acc,train_loss,test_loss)
+>     #         self.canvas.refresh(int(self.n_trains_Edit))
+> 
+>     #         subprocess.call(["rm","-rf",log_file])
+> 
+>     #     is_load_pretrain = 1
+>     #     self.bstart.setText('Continue Training')
+> 
+>     #     # Restore Global Variables
+>     #     global img_siz 
+>     #     img_siz = int(config['imgsiz'])
+>     #     global n_class 
+>     #     n_class = int(n_ou_fmaps[len(initial_options) - 1])
+842,843c611,612
+<         print("[INFO] IMAGE SIZE %dx%d" % (img_siz,img_siz))
+<         print("[INFO] #CLASSES: %d" % (n_class))
+---
+>     #     print("[INFO] IMAGE SIZE %dx%d" % (img_siz,img_siz))
+>     #     print("[INFO] #CLASSES: %d" % (n_class))
+845,846c614,615
+<         # update widgets
+<         self.update()
+---
+>     #     # update widgets
+>     #     self.update()
+855,857c624,629
+<         for index in range(self.table.rowCount()):
+<             itm0 = self.table.cellWidget(index,0)
+<             itm3 = self.table.item(index,3) 
+---
+>         #for index in range(self.table.rowCount()):
+>         for index in range(len(self.table)):
+>             #itm0 = self.table.cellWidget(index,0)
+>             #itm3 = self.table.item(index,3)
+>             itm0 = self.table[index][0]
+>             itm3 = self.table[index][3] 
+861,862c633,635
+<                 tbl_item = QtGui.QTableWidgetItem(str(int(fsiz)))
+<                 self.table.setItem(index,3,tbl_item)
+---
+>                 # tbl_item = QtGui.QTableWidgetItem(str(int(fsiz)))
+>                 # self.table.setItem(index,3,tbl_item)
+>                 self.table[index][3] = str(int(fsiz))
+864,874c637,656
+<             elif itm0.currentText() == 'Conv(Int)':
+<                 tbl_item = QtGui.QTableWidgetItem(str(int(fsiz)))
+<                 self.table.setItem(index,3,tbl_item)
+< 
+<             elif itm0.currentText() == 'Conv(Bin)':
+<                 tbl_item = QtGui.QTableWidgetItem(str(int(fsiz)))
+<                 self.table.setItem(index,3,tbl_item)
+< 
+<             elif itm0.currentText() == 'Max Pool':
+<                 tbl_item = QtGui.QTableWidgetItem(str(int(fsiz)))
+<                 self.table.setItem(index,3,tbl_item)
+---
+>             # elif itm0.currentText() == 'Conv(Int)':
+>             #     tbl_item = QtGui.QTableWidgetItem(str(int(fsiz)))
+>             #     self.table.setItem(index,3,tbl_item)
+>             elif itm0 == 'Conv(Int)':
+>                 self.table[index][3] = str(int(fsiz))
+>             # elif itm0.currentText() == 'Conv(Bin)':
+>             #     tbl_item = QtGui.QTableWidgetItem(str(int(fsiz)))
+>             #     self.table.setItem(index,3,tbl_item)
+>             elif itm0 == 'Conv(Bin)':
+>                 self.table[index][3] = str(int(fsiz))
+> 
+>             # elif itm0.currentText() == 'Max Pool':
+>             #     tbl_item = QtGui.QTableWidgetItem(str(int(fsiz)))
+>             #     self.table.setItem(index,3,tbl_item)
+> 
+>             #     fsiz = fsiz / 2
+>             #     if fsiz < 1:
+>             #         fsiz = 1
+>             elif itm0 == 'Max Pool':
+>                 self.table[index][3] = str(int(fsiz))
+879,882c661,669
+< 
+<             elif itm0.currentText() == 'Ave Pool':
+<                 tbl_item = QtGui.QTableWidgetItem(str(int(fsiz)))
+<                 self.table.setItem(index,3,tbl_item)
+---
+>             # elif itm0.currentText() == 'Ave Pool':
+>             #     tbl_item = QtGui.QTableWidgetItem(str(int(fsiz)))
+>             #     self.table.setItem(index,3,tbl_item)
+> 
+>             #     fsiz = fsiz / 2
+>             #     if fsiz < 1:
+>             #         fsiz = 1
+>             elif itm0 == 'Ave Pool':
+>                 self.table[index][3] = str(int(fsiz))
+887c674,676
+< 
+---
+>             # else: # Dense
+>             #     tbl_item = QtGui.QTableWidgetItem('1')
+>             #     self.table.setItem(index,3,tbl_item)
+889,890c678
+<                 tbl_item = QtGui.QTableWidgetItem('1')
+<                 self.table.setItem(index,3,tbl_item)
+---
+>                 self.table[index][3] = str(int(1))
+899,900c687,689
+<         filename = QtGui.QFileDialog.getOpenFileName(self, 'File Open', './')
+<         self.td_label.setText(filename)
+---
+>         # filename = QtGui.QFileDialog.getOpenFileName(self, 'File Open', './')
+>         # self.td_label.setText(filename)
+>         filename = self.td_label
+914,915c703,706
+<         filename = QtGui.QFileDialog.getOpenFileName(self, 'File Open', './')
+<         self.tl_label.setText(filename)
+---
+>         # filename = QtGui.QFileDialog.getOpenFileName(self, 'File Open', './')
+>         # self.tl_label.setText(filename)
+> 
+>         filename = self.tl_label
+927,928c718,720
+<             item3 = QtGui.QTableWidgetItem(str(n_class))
+<             self.table.setItem(self.table.rowCount()-1,2,item3)
+---
+>             # item3 = QtGui.QTableWidgetItem(str(n_class))
+>             # self.table.setItem(self.table.rowCount()-1,2,item3)
+>             self.table[len(self.table)-1][2] = str(n_class)
+934c726,727
+<         template_name = self.combo1.currentText()
+---
+>         #template_name = self.combo1.currentText()
+>         template_name = self.netName
+951a745,749
+>         elif template_name == 'VGG9ave-32':
+>             initial_options = [0, 1,   2,    1,   1,   2,   1,   1,   2,   1,   1,   3,   4]
+>             n_in_fmaps = [ '3','32','32', '32','32','32','32','32','32','32','32','32','32']
+>             n_ou_fmaps = ['32','32','32', '32','32','32','32','32','32','32','32','32','10']
+>             infmap_siz = ['32','32','32', '16','16','16', '8', '8', '8', '4', '4', '4', '1']
+977c775,777
+<         self.table.setRowCount(len(initial_options))
+---
+>         self.table = []
+> 
+>         #self.table.setRowCount(len(initial_options))
+979,993c779,794
+<             combo = QtGui.QComboBox()
+<             for t in self.combo_box_options:
+<                 combo.addItem(t)
+<             combo.setCurrentIndex(initial_options[index])
+<             self.table.setCellWidget(index,0,combo)
+<             item1 = QtGui.QTableWidgetItem(n_in_fmaps[index])
+<             self.table.setItem(index,1,item1)
+<             item2 = QtGui.QTableWidgetItem(n_ou_fmaps[index])
+<             self.table.setItem(index,2,item2)
+<             item3 = QtGui.QTableWidgetItem(infmap_siz[index])
+<             self.table.setItem(index,3,item3)
+< 
+<             item4 = QtGui.QCheckBox('')
+<             item4.setChecked(True) # isChecked() == True?False?
+<             self.table.setCellWidget(index,4,item4)
+---
+>             self.table.append([self.combo_box_options[initial_options[index]], n_in_fmaps[index], n_ou_fmaps[index], infmap_siz[index], True])
+>             # combo = QtGui.QComboBox()
+>             # for t in self.combo_box_options:
+>             #     combo.addItem(t)
+>             # combo.setCurrentIndex(initial_options[index])
+>             # self.table.setCellWidget(index,0,combo)
+>             # item1 = QtGui.QTableWidgetItem(n_in_fmaps[index])
+>             # self.table.setItem(index,1,item1)
+>             # item2 = QtGui.QTableWidgetItem(n_ou_fmaps[index])
+>             # self.table.setItem(index,2,item2)
+>             # item3 = QtGui.QTableWidgetItem(infmap_siz[index])
+>             # self.table.setItem(index,3,item3)
+> 
+>             # item4 = QtGui.QCheckBox('')
+>             # item4.setChecked(True) # isChecked() == True?False?
+>             # self.table.setCellWidget(index,4,item4)
+1001,1058c802,859
+< class Canvas(FigureCanvas):
+<     def __init__(self):
+<         FigureCanvas.__init__(self,Figure())
+<         self.ax = self.figure.add_subplot(111)
+<         self.train_acc=[0]*100
+<         self.test_acc=[0]*100
+<         self.train_loss=[0]*100
+<         self.test_loss=[0]*100
+<         self.ax.set_xlabel("epoch")
+<         self.ax.set_ylabel("Accuracy[%]")
+<         self.ax.set_ylim(0,100)
+< 
+<         self.ax2 = self.ax.twinx()
+<         self.ax2.set_ylabel("Loss")
+< 
+<         self.refresh(100)
+< 
+<     def refresh(self,xrange):
+<         self.ax = self.figure.add_subplot(111)
+<         self.ax.clear()
+<         self.ax.plot(range(0,len(self.train_acc)),np.ones(len(self.train_acc))*100.0 - self.train_acc,label='Accuracy(Train)',color="blue")
+<         self.ax.plot(range(0,len(self.test_acc)),np.ones(len(self.test_acc))*100.0 - self.test_acc,label='Accuracy(Test)',color="red")
+< 
+<         self.ax.annotate('Accuracy(Test)', 
+<             xy=(xrange - 1, 100.0 - self.test_acc[len(self.test_acc) - 1]), xycoords='data',
+<             xytext=(-100, -20), 
+<             textcoords='offset points',
+<             arrowprops=dict(arrowstyle="->")
+<             )
+< 
+<         self.ax.set_xlabel("epoch")
+<         self.ax.set_ylabel("Accuracy[%]")
+<         self.ax.set_ylim(0,100)
+<         self.ax.set_xlim(0,xrange)
+<         self.ax.grid()
+< 
+<         self.ax2.clear()
+<         self.ax2.plot(range(0,len(self.train_loss)),self.train_loss,label='Loss(Train)',color="mediumslateblue")
+<         self.ax2.plot(range(0,len(self.test_loss)),self.test_loss,label='Loss(Test)',color="hotpink")
+< 
+<         self.ax2.annotate('Loss(Test)', 
+<             xy=(xrange - 1, self.test_loss[len(self.test_loss) - 1]), xycoords='data',
+<             xytext=(-80, 20), 
+<             textcoords='offset points',
+<             arrowprops=dict(arrowstyle="->")
+<             )
+< 
+<         self.ax2.set_ylim(0,max(self.train_loss)*1.1)
+<         self.ax2.set_xlim(0,xrange)
+<         self.ax2.set_ylabel("Loss")
+< 
+<         self.draw()
+< 
+<     def push_data(self,train_acc,test_acc,train_loss,test_loss):
+<         self.train_acc = train_acc
+<         self.test_acc = test_acc
+<         self.train_loss = train_loss
+<         self.test_loss = test_loss
+---
+> # class Canvas(FigureCanvas):
+> #     def __init__(self):
+> #         FigureCanvas.__init__(self,Figure())
+> #         self.ax = self.figure.add_subplot(111)
+> #         self.train_acc=[0]*100
+> #         self.test_acc=[0]*100
+> #         self.train_loss=[0]*100
+> #         self.test_loss=[0]*100
+> #         self.ax.set_xlabel("epoch")
+> #         self.ax.set_ylabel("Accuracy[%]")
+> #         self.ax.set_ylim(0,100)
+> 
+> #         self.ax2 = self.ax.twinx()
+> #         self.ax2.set_ylabel("Loss")
+> 
+> #         self.refresh(100)
+> 
+> #     def refresh(self,xrange):
+> #         self.ax = self.figure.add_subplot(111)
+> #         self.ax.clear()
+> #         self.ax.plot(range(0,len(self.train_acc)),np.ones(len(self.train_acc))*100.0 - self.train_acc,label='Accuracy(Train)',color="blue")
+> #         self.ax.plot(range(0,len(self.test_acc)),np.ones(len(self.test_acc))*100.0 - self.test_acc,label='Accuracy(Test)',color="red")
+> 
+> #         self.ax.annotate('Accuracy(Test)', 
+> #             xy=(xrange - 1, 100.0 - self.test_acc[len(self.test_acc) - 1]), xycoords='data',
+> #             xytext=(-100, -20), 
+> #             textcoords='offset points',
+> #             arrowprops=dict(arrowstyle="->")
+> #             )
+> 
+> #         self.ax.set_xlabel("epoch")
+> #         self.ax.set_ylabel("Accuracy[%]")
+> #         self.ax.set_ylim(0,100)
+> #         self.ax.set_xlim(0,xrange)
+> #         self.ax.grid()
+> 
+> #         self.ax2.clear()
+> #         self.ax2.plot(range(0,len(self.train_loss)),self.train_loss,label='Loss(Train)',color="mediumslateblue")
+> #         self.ax2.plot(range(0,len(self.test_loss)),self.test_loss,label='Loss(Test)',color="hotpink")
+> 
+> #         self.ax2.annotate('Loss(Test)', 
+> #             xy=(xrange - 1, self.test_loss[len(self.test_loss) - 1]), xycoords='data',
+> #             xytext=(-80, 20), 
+> #             textcoords='offset points',
+> #             arrowprops=dict(arrowstyle="->")
+> #             )
+> 
+> #         self.ax2.set_ylim(0,max(self.train_loss)*1.1)
+> #         self.ax2.set_xlim(0,xrange)
+> #         self.ax2.set_ylabel("Loss")
+> 
+> #         self.draw()
+> 
+> #     def push_data(self,train_acc,test_acc,train_loss,test_loss):
+> #         self.train_acc = train_acc
+> #         self.test_acc = test_acc
+> #         self.train_loss = train_loss
+> #         self.test_loss = test_loss
+1064,1066c865,874
+<     app = QtGui.QApplication(sys.argv)
+<     ex = Layout()
+<     sys.exit(app.exec_())
+---
+>     #app = QtGui.QApplication(sys.argv)
+>     #ex = Layout()
+>     #sys.exit(app.exec_())
+>     #(projectName, td_label, tl_label, epoch, netName='VGG9ave', optimizer='Adam', useGPU=True, board='zed'):
+>     parser = argparse.ArgumentParser(description='CUINNESS')
+>     parser.add_argument('projectName', help='Project Name')
+>     parser.add_argument('dataset', help='Dataset Name')
+>     parser.add_argument('epoch', help='epoch')
+>     parser.add_argument('--netName', default='VGG9ave', help='netName')
+>     parser.add_argument('--batchSize', default=100, help='batch size') 
+1067a876,877
+>     args = parser.parse_args()
+>     CUINNESS(args.projectName, args.dataset+'_dataset.pkl', args.dataset+'_label.pkl', args.epoch, netName=args.netName, batchSize=str(args.batchSize))
+diff -r GUINNESS/header.txt GUINNESS_on_colab/header.txt
+24c24,25
+<         super(CNN, self).__init__(
+---
+>         super(CNN, self).__init__()
+>         with self.init_scope():
+diff -r GUINNESS/link_batch_normalization.py GUINNESS_on_colab/link_batch_normalization.py
+5a6
+> import chainer
+74c75,76
+<             initializers.init_weight(self.gamma.data, initial_gamma)
+---
+>             #initializers.init_weight(self.gamma.data, initial_gamma)
+>             self.gamma = chainer.Parameter(initial_gamma, (size,))
+79c81,82
+<             initializers.init_weight(self.beta.data, initial_beta)
+---
+>             #initializers.init_weight(self.beta.data, initial_beta)
+>             self.beta = chainer.Parameter(initial_beta, (size,))
+139,140c142,143
+<             mean = variable.Variable(self.avg_mean, volatile='auto')
+<             var = variable.Variable(self.avg_var, volatile='auto')
+---
+>             mean = variable.Variable(self.avg_mean)#, volatile='auto')
+>             var = variable.Variable(self.avg_var)#, volatile='auto')
+diff -r GUINNESS/link_binary_conv2d.py GUINNESS_on_colab/link_binary_conv2d.py
+2a3
+> import chainer
+63,66c64,67
+<         if in_channels is None:
+<             self.add_uninitialized_param('W')
+<         else:
+<             self._initialize_params(in_channels)
+---
+>         # if in_channels is None:
+>         #     self.add_uninitialized_param('W')
+>         # else:
+>         #     self._initialize_params(in_channels)
+73,74c74,84
+<         initializers.init_weight(self.W.data, self.initialW,
+<                                  scale=math.sqrt(self.wscale))
+---
+>         # initializers.init_weight(self.W.data, self.initialW,
+>         #                          scale=math.sqrt(self.wscale))
+>         #self.initialW = self.initialW * math.sqrt(self.wscale)
+> 
+>         #self.W = chainer.Parameter(self.initialW, W_shape)
+>         with self.init_scope():
+>             self.add_param('W', W_shape)
+>             self.W = chainer.Parameter(chainer.initializers.HeNormal(1/numpy.sqrt(2)), W_shape)
+>             # self.W *= math.sqrt(self.wscale)
+>             #self.W = chainer.Parameter(self.initialW, W_shape)
+>         #self.W = self.W * math.sqrt(self.wscale)
+82c92,93
+<             initializers.init_weight(self.b.data, initial_bias)
+---
+>             #initializers.init_weight(self.b.data, initial_bias)
+>             self.b = chainer.Parameter(initial_bias, (1,))
+87a99,100
+>         #with self.init_scope():
+>         #    self.W = chainer.Parameter(None, W_shape)
+90,91c103,109
+<         initializers.init_weight(self.W.data, self.initialW,
+<                                  scale=math.sqrt(self.wscale))
+---
+>         # initializers.init_weight(self.W.data, self.initialW,
+>         #                          scale=math.sqrt(self.wscale))
+>         #self.initialW = self.initialW * math.sqrt(self.wscale)
+> 
+>         #self.W = chainer.Parameter(chainer.initializers.HeNormal(1/numpy.sqrt(2)), W_shape)
+>         #self.W *= math.sqrt(self.wscale)
+>         #self.W = self.W * math.sqrt(self.wscale)
+diff -r GUINNESS/link_integer_conv2d.py GUINNESS_on_colab/link_integer_conv2d.py
+4a5
+> import chainer
+64,67c65,68
+<         if in_channels is None:
+<             self.add_uninitialized_param('W')
+<         else:
+<             self._initialize_params(in_channels)
+---
+>         # if in_channels is None:
+>         #     self.add_uninitialized_param('W')
+>         # else:
+>         #     self._initialize_params(in_channels)
+74,75c75,85
+<         initializers.init_weight(self.W.data, self.initialW,
+<                                  scale=math.sqrt(self.wscale))
+---
+>         #initializers.init_weight(self.W.data, self.initialW,
+>         #                         scale=math.sqrt(self.wscale))
+> 
+>         #self.initialW = self.initialW * math.sqrt(self.wscale)
+>         #self.W = chainer.Parameter(self.initialW, W_shape)
+>         with self.init_scope():
+>             self.add_param('W', W_shape)
+>             self.W = chainer.Parameter(chainer.initializers.HeNormal(1/numpy.sqrt(2)), W_shape)
+>             # self.W *= math.sqrt(self.wscale)
+>             #self.W = chainer.Parameter(self.initialW, W_shape)
+>         #self.W = self.W * math.sqrt(self.wscale)
+83c93,94
+<             initializers.init_weight(self.b.data, initial_bias)
+---
+>             #initializers.init_weight(self.b.data, initial_bias)
+>             self.b = chainer.Parameter(initial_bias, (1,))
+88a100,101
+>         #with self.init_scope():
+>         #    self.W = chainer.Parameter(None, W_shape)
+91,92c104,110
+<         initializers.init_weight(self.W.data, self.initialW,
+<                                  scale=math.sqrt(self.wscale))
+---
+>         # initializers.init_weight(self.W.data, self.initialW,
+>         #                          scale=math.sqrt(self.wscale))
+>         #self.initialW = self.initialW * math.sqrt(self.wscale)
+>         #self.W = chainer.Parameter(self.initialW, W_shape)
+>         #self.W = chainer.Parameter(chainer.initializers.HeNormal(1/numpy.sqrt(2)), W_shape)
+>         #self.W *= math.sqrt(self.wscale)
+>         #    self.W = self.W * math.sqrt(self.wscale)
+Only in GUINNESS: list.txt
+Only in GUINNESS_on_colab: on_colab.ipynb
+diff -r GUINNESS/README.md GUINNESS_on_colab/README.md
+2a3,5
+> - [Open linetrace with Colab](https://colab.research.google.com/github/knmrtkt/CUINNESS/blob/master/colnness.ipynb)
+> - [Open typical dataset demo with Colab](https://colab.research.google.com/github/knmrtkt/CUINNESS/blob/master/demo.ipynb)
+> 
+diff -r GUINNESS/template_cpp_r7_bcnn.cpp GUINNESS_on_colab/template_cpp_r7_bcnn.cpp
+1,466c1,500
+< /*
+<  * C++ Templete for a Binarized CNN
+<  *
+<  *  Created on: 2017/07/01
+<  *      Author: H. Nakahara
+<  */
+< 
+< #include <stdio.h>
+< #include <stdlib.h>
+< #include <iostream>
+< #include <bitset>
+< 
+< #include <ap_int.h>
+< 
+< #ifdef __SDSCC__
+< #include "sds_lib.h"
+< #else 
+< #define sds_alloc(x)(malloc(x))
+< #define sds_free(x)(free(x))
+< #endif
+< 
+< // custom bitwidth for streaming operation
+< typedef ap_int<2>    bit_2;
+< typedef ap_int<4>    bit_4;
+< typedef ap_int<8>    bit_8;
+< typedef ap_int<16>   bit_16;
+< typedef ap_int<32>   bit_32;
+< typedef ap_int<64>   bit_64;
+< typedef ap_int<128>  bit_128;
+< typedef ap_int<256>  bit_256;
+< typedef ap_int<512>  bit_512;
+< 
+< // weight memory -----------------------------------------------------------
+< (DEF_WEIGHT_MEM)
+< // bias memory ------------------------------------------------------------
+< (DEF_BIAS_MEM)
+< // -------------------------------------------------------------------------
+< // Load weights and bias from the external memory (DDR3/4 Memory)
+< // -------------------------------------------------------------------------
+< #ifdef __SDSCC__
+< #pragma SDS data access_pattern(t_bin_convW: SEQUENTIAL)
+< #pragma SDS data access_pattern(t_BNFb: SEQUENTIAL)
+< #pragma SDS data zero_copy(t_bin_convW[0:(WEIGHT_SIZ)])
+< #pragma SDS data zero_copy(t_BNFb[0:(BIAS_SIZ)])
+< #endif
+< void setup(
+< #ifdef __SDSCC__
+< 	    int *t_bin_convW,
+< 		int *t_BNFb
+< #else 
+<         int t_bin_convW[(WEIGHT_SIZ)],
+<         int t_BNFb[(BIAS_SIZ)]
+< #endif
+< )
+< {
+< 	// set buffer memory -----------------------------------------------
+< 	int x, y, of, inf, offset;
+< 
+< 	// -----------------------------------------------------------------
+< 	// setup memory
+< 	// -----------------------------------------------------------------
+< (SET_WEIGHT_MEM)
+< (SET_BIAS_MEM)
+< }
+< 
+< // -------------------------------------------------------------------------
+< // Binary Convolutional Layer
+< // -------------------------------------------------------------------------
+< void bin_conv2d_pipeline(
+< 		ap_int<(MAX_BCONV_WIDTH)> fmap[(IMGSIZ)][(IMGSIZ)],
+< 		int layer,
+< 		int size,
+< 		int n_in,
+< 		int n_out
+< 		)
+< {
+< (BCONV_REG_PRAGMA)
+< 
+< 	int ofeat, infeat, w_flag;
+< 	int i, k, ky, kx, ix, iy, ox, oy;
+< 	int idx = 0;
+< 
+< 	static ap_int<(MAX_BCONV_WIDTH)> shift_reg1[((IMGSIZ)+2)*3];
+< #pragma HLS ARRAY_PARTITION variable=shift_reg1 complete dim=1
+< 	static ap_uint<1> padding_shift_reg[((IMGSIZ)+2)*3];
+< #pragma HLS ARRAY_PARTITION variable=padding_shift_reg complete dim=1
+< 
+< 	int cnt = 0;
+< 
+< 	ix = iy = ox = oy = w_flag = 0;
+< 
+<     CONV_IF: for( k = 0; k < (size+2) * (size+2); k++){
+< #pragma HLS loop_flatten off
+< 
+<     	SHIFT_REG: for( i = 0; i < 2 * ((IMGSIZ)+2) + 3; i++){
+< #pragma HLS UNROLL
+<     		shift_reg1[ i] = shift_reg1[ i + 1];
+<     		padding_shift_reg[ i] = padding_shift_reg[ i + 1];
+<     	}
+<     	ap_int<(MAX_BCONV_WIDTH)> din;
+<     	ap_uint<1> padding;
+<     	if( (ix > 0 && ix <= size) && (iy > 0 && iy <= size)){
+< 		din = (ap_int<(MAX_BCONV_WIDTH)>)fmap[iy-1][ix-1];
+< 		padding = 0;
+<     	} else {
+<     		ap_int<(MAX_BCONV_WIDTH)> allone;
+<     		allone = ~0;
+<     		din = allone;
+< 		padding = 1;
+<     	}
+<     	switch( layer){
+< (BCONV_REG_SELECT)
+<     	}
+< 
+<     	ix++;
+<     	if( ix == size+2){
+<     		ix = 0;
+<     		iy++;
+<     	}
+< 
+<     	if( k >= ((size+2)*2+3 - 1)){
+<     		w_flag++;
+<     		if( w_flag > (size+2)){
+<             	w_flag = 1;
+<             	cnt    = 0;
+<             }
+<     	}
+< 
+<     	// convolutional operation -----------------------------------
+< 		ap_uint<(MAX_BCONV_WIDTH)> bit_tmp = 0x1;
+< 		ap_uint<(MAX_BCONV_WIDTH)> streamOut = 0;
+< 
+<     	OF: for( ofeat = 0; ofeat < n_out; ofeat++){
+<     		ap_int<16> tmp = 0;
+<     		ap_int<16> tmp2;
+< 
+<             CONV_KY: for( ky = 0; ky < 3; ky++){
+< #pragma HLS pipeline
+<             	CONV_KX: for( kx = 0; kx < 3; kx++){
+<             		ap_uint<(MAX_BCONV_WIDTH)> bx, bw;
+<             		ap_uint<(MAX_BCONV_WIDTH)> bxor;
+<                     ap_uint<(MAX_BCONV_WIDTH)> mask;
+<                     ap_uint<(MAX_BCONV_WIDTH)> allzero = 0;
+<                     ap_uint<1>is_padding;
+< 
+<             		switch( layer){
+< (BCONV_WEIGHT_SELECT)
+<             		}
+< 
+<                     (BIN_XOR_MAC)
+< 
+< 			tmp2 = 0;
+<                     ONES_COUNT: for( i = 0; i < (MAX_BCONV_WIDTH); i++){
+<                         tmp2 += (((bxor >> i) & 0x1) == 1) ? 1 : 0;
+<                     }
+<                     if( is_padding == 0)
+<                         tmp += (n_in - tmp2 * 2);
+< 		}
+<             }
+< 
+<             if( w_flag > 0 && w_flag <= size){
+< #pragma HLS pipeline
+<             	ap_int<16> bias;
+<             	switch( layer){
+< (BCONV_BIAS_SELECT)
+<             	}
+<             	tmp += bias;
+< 
+<             	if( tmp >= 0) streamOut = streamOut | bit_tmp;
+< 
+<             	bit_tmp = bit_tmp << 1;
+< 
+<             	cnt++;
+<             	if( cnt == n_out){
+<             		cnt = 0;
+<             		fmap[oy][ox] = (ap_int<(MAX_BCONV_WIDTH)>)streamOut;
+< 
+<             		ox++;
+<             		if( ox == size){
+<             			ox = 0;
+<             			oy++;
+<             		}
+< 
+<             		idx++;
+<             	}
+< 
+<             }
+<     	}
+< 
+<     }
+< }
+< 
+< // ------------------------------------------------------------------------
+< template< typename BIN_TYPE, typename BOUT_TYPE, int N_IFEAT, int N_OFEAT, int IF_SIZ, int OF_SIZ>
+< void int_conv2d_pipeline(
+< 		BIN_TYPE infmap[IF_SIZ][IF_SIZ],
+< 		BOUT_TYPE outfmap[OF_SIZ][OF_SIZ],
+< 		ap_int<(NUMIMG)> W[N_OFEAT][3*3],
+< 		ap_int<20> BNFb[N_OFEAT]
+< 		)
+< {
+< #pragma HLS ARRAY_PARTITION variable=W cyclic factor=9 dim=2
+< 
+< 	int ofeat, infeat;
+< 	int w_flag;
+< 	int i, k, ky, kx;
+< 
+< 	int idx = 0;
+< 
+< 	static ap_int<N_IFEAT> shift_reg1[(IF_SIZ+2)*3];
+< #pragma HLS ARRAY_PARTITION variable=shift_reg1 complete dim=1
+< 	int cnt = 0;
+< 
+< 	int debug_out = 0;
+<     w_flag = 0;
+< 
+<     int ix, iy, ox, oy;
+<     ix = iy = ox = oy = 0;
+< 
+<     CONV_IF: for( k = 0; k < (IF_SIZ+2) * (IF_SIZ+2); k++){
+< #pragma HLS loop_flatten off
+< 
+<     	// pipeline register ------------------------------------------
+<     	SHIFT_REG: for( i = 0; i < 2 * (IF_SIZ+2) + 3; i++){
+< #pragma HLS UNROLL
+<     		shift_reg1[ i] = shift_reg1[ i + 1];
+<     	}
+<     	ap_int<N_IFEAT> din;
+<     	if( (ix > 0 && ix <= IF_SIZ) && (iy > 0 && iy <= IF_SIZ)){
+<     		din = infmap[iy-1][ix-1];
+<     	} else {
+<             ap_int<N_IFEAT> allzero;
+<             allzero = 0;
+<             din = allzero;
+<     	}
+<     	shift_reg1[ 2 * (IF_SIZ+2) + 3 - 1] = din;
+< 
+<     	ix++;
+<     	if( ix == IF_SIZ+2){
+<     		ix = 0;
+<     		iy++;
+<     	}
+< 
+< 
+<     	// enable MAC operation
+<     	if( k >= ((IF_SIZ+2)*2+3 - 1)){
+<     		w_flag++;
+<     		if( w_flag > (IF_SIZ+2)){
+<             	w_flag = 1;
+<             	cnt    = 0;
+<             }
+<     	}
+< 
+<     	// convolutional operation -----------------------------------
+< 		ap_uint<N_OFEAT>bit_tmp = 0x1;
+< 		ap_uint<N_OFEAT> streamOut = 0;
+< 
+<     	OF: for( ofeat = 0; ofeat < N_OFEAT; ofeat++){
+<     		int tmp = 0;
+<     		ap_int<20> tmp2;
+< 
+<             CONV_KY: for( ky = 0; ky < 3; ky++){
+< #pragma HLS pipeline
+<             	CONV_KX: for( kx = 0; kx < 3; kx++){
+<             		ap_int<64> bx;
+<             		ap_int<3> bw;
+< 
+<             		bx = shift_reg1[ky * (IF_SIZ+2) + kx];
+<             		bw = W[ofeat][ky*3+kx];
+< 
+<             		MAC_RGB: for( i = 0; i < 3; i++){
+<             			tmp2 = ap_int<20>(bx & 0xFFFFF);
+<             			tmp = ((bw & 0x1) == 0) ? (tmp - (int)tmp2) : (tmp + (int)tmp2);
+<             			bw = bw >> 1;
+<             			bx = bx >> 20;
+<             		}
+<             	}
+<             }
+< 
+<             // output to Streaming Buffer
+<             if( w_flag > 0 && w_flag <= IF_SIZ){
+< #pragma HLS pipeline
+< 
+<             	tmp += BNFb[ofeat];
+< 
+<             	if( tmp >= 0) streamOut = streamOut | bit_tmp;
+< 
+<             	bit_tmp = bit_tmp << 1;
+< 
+<             	cnt++;
+<             	if( cnt == N_OFEAT){
+<             		cnt = 0;
+< 
+<             		outfmap[oy][ox] = streamOut;
+< 
+<             		ox++;
+<             		if( ox == OF_SIZ){
+<             			ox = 0;
+<             			oy++;
+<             		}
+< 
+<             		idx++;
+<             	}
+< 
+<             }
+<     	}
+< 
+<     }
+< }
+< 
+< template< typename BIN_TYPE, typename BOUT_TYPE, int NUM_IFEAT, int NUM_OFEAT,
+<           int INFEAT_SIZ, int OFEAT_SIZ>
+< void int_conv2d_layer(
+< 		BIN_TYPE infmap[INFEAT_SIZ][INFEAT_SIZ],
+< 		BOUT_TYPE outfmap[OFEAT_SIZ][OFEAT_SIZ],
+< 		ap_int<(NUMIMG)> W[NUM_OFEAT][3*3],
+< 		ap_int<20> BNFb[NUM_OFEAT]
+< )
+< {
+< 	int_conv2d_pipeline< BIN_TYPE, BOUT_TYPE, NUM_IFEAT, NUM_OFEAT,
+< 		INFEAT_SIZ, OFEAT_SIZ>( infmap, outfmap, W, BNFb);
+< }
+< 
+< // -------------------------------------------------------------------------
+< // Maximum Pooling Layer
+< // -------------------------------------------------------------------------
+< template< typename TYPE_BIT, int FEAT_SIZ, int POOL_SIZ>
+< void max_pooling_layer( TYPE_BIT ftmp[FEAT_SIZ][FEAT_SIZ])
+< {
+< 	int inf_x, inf_y, oy, ox;
+< 
+< 	TYPE_BIT tmp0, tmp1, tmp2, tmp3, m;
+< 
+< 	oy = 0;
+< 	PY: for( inf_y = 0; inf_y < FEAT_SIZ; inf_y += 2){
+< 		ox = 0;
+< 		PX: for( inf_x = 0; inf_x < FEAT_SIZ; inf_x += 2){
+< 			tmp0 = ftmp[inf_y][inf_x];
+< 			tmp1 = ftmp[inf_y][inf_x+1];
+< 			tmp2 = ftmp[inf_y+1][inf_x];
+< 			tmp3 = ftmp[inf_y+1][inf_x+1];
+< 
+< 			m = tmp0 | tmp1 | tmp2 | tmp3;
+< 			ftmp[oy][ox] = m;
+< 			ox++;
+< 		}
+< 		oy++;
+< 	}
+< }
+< 
+< // -------------------------------------------------------------------------
+< // FC Layer
+< // -------------------------------------------------------------------------
+< template < int NUM_OFEAT, int NUM_INFEAT>
+< void fc_layer(
+< 	ap_int<1> fc_tmp[NUM_INFEAT],
+< 	ap_int<1> lW[NUM_OFEAT][NUM_INFEAT],
+< 	ap_int<16> b_BNFb[NUM_OFEAT],
+< 	int fc_result[(MAX_DENSE_SIZ)]
+< )
+< {
+< 	int ofeat, tmp, infeat;
+< 
+< 	FC_O: for( ofeat = 0; ofeat < NUM_OFEAT; ofeat++){
+< #pragma HLS LOOP_FLATTEN off
+< 		tmp = 0;
+< 
+< 		FC_I: for( infeat = 0; infeat < NUM_INFEAT; infeat++){
+< #pragma HLS pipeline
+< 			ap_int<1> bw, bx, xnor;
+< 
+< 			bw = lW[ofeat][infeat];
+< 			bx = fc_tmp[infeat];
+< 			xnor = ~(bw ^ bx);
+< 
+< 			tmp += (xnor == 0) ? -1 : +1;
+< 		}
+< 
+< 		fc_result[ofeat] = tmp + b_BNFb[ofeat];
+< 	}
+< }
+< 
+< // -------------------------------------------------------------------------
+< // Binarized CNN Kernel
+< // -------------------------------------------------------------------------
+< #ifdef __SDSCC__
+< #pragma SDS data access_pattern(t_in_img: SEQUENTIAL)
+< #pragma SDS data zero_copy(t_in_img[0:(IMGSIZ)*(IMGSIZ)])
+< #endif
+< void kernel(
+< #ifdef __SDSCC__
+<         ap_int<64> t_in_img[(IMGSIZ)*(IMGSIZ)],
+<         int fc_result[10]
+< #else 
+<         ap_int<64> t_in_img[(IMGSIZ)*(IMGSIZ)],
+<         int fc_result[10]
+< #endif
+< )
+< {
+< 	ap_int<(MAX_BCONV_WIDTH)> fb_tmp[(IMGSIZ)][(IMGSIZ)];
+< 	ap_int<1> fc_tmp[(MAX_DENSE_SIZ)];
+< 	ap_int<64> in_img[(IMGSIZ)][(IMGSIZ)];
+< 
+< 	int y, x, of, layer, bin_layer_idx;
+< (DEF_CNN_PARAMETER)
+< 
+< 	for( y = 0; y < (IMGSIZ); y++){
+< 		for( x = 0; x < (IMGSIZ); x++){
+< 			in_img[y][x] = t_in_img[y*(IMGSIZ)+x];
+< 		}
+< 	}
+< 
+< #pragma HLS INLINE
+< 
+<     bin_layer_idx = 1;
+< 	BCONV: for( layer = 0; layer < (NUM_LAYER); layer++){
+< 		switch(layer){
+< (DEF_CNN_LAYER)
+< 		}
+< 	}
+< }
+< 
+< //--------------------------------------------------------------------
+< // Top Function for a Binarized CNN
+< //--------------------------------------------------------------------
+< #ifdef __SDSCC__
+< #pragma SDS data access_pattern(t_bin_convW: SEQUENTIAL)
+< #pragma SDS data access_pattern(t_BNFb: SEQUENTIAL)
+< #pragma SDS data access_pattern(t_in_img: SEQUENTIAL)
+< #pragma SDS data zero_copy(t_bin_convW[0:(WEIGHT_SIZ)])
+< #pragma SDS data zero_copy(t_BNFb[0:(BIAS_SIZ)])
+< #pragma SDS data zero_copy(t_in_img[0:(IMGSIZ)*(IMGSIZ)])
+< #endif
+< void BinCNN(
+< #ifdef __SDSCC__
+<         int *t_bin_convW,
+<         int *t_BNFb,
+<         ap_int<64> t_in_img[(IMGSIZ)*(IMGSIZ)],
+<         int fc_result[(OUT_DENSE_SIZ)],
+<         int init
+< #else 
+<         int t_bin_convW[(WEIGHT_SIZ)],
+<         int t_BNFb[(BIAS_SIZ)],
+<         ap_int<64> t_in_img[(IMGSIZ)*(IMGSIZ)],
+<         int fc_result[(OUT_DENSE_SIZ)],
+<         int init
+< #endif
+< )
+< {
+< /*
+< #pragma HLS INTERFACE s_axilite register port=t_bin_convW bundle=slv0
+< #pragma HLS INTERFACE s_axilite register port=t_BNFb bundle=slv0
+< #pragma HLS INTERFACE s_axilite register port=t_in_img bundle=slv0
+< #pragma HLS INTERFACE s_axilite register port=fc_result bundle=slv0
+< #pragma HLS INTERFACE s_axilite register port=init bundle=slv0
+< #pragma HLS INTERFACE s_axilite register port=return bundle=slv0
+< */
+< 	if( init == 1)
+< 		setup( t_bin_convW, t_BNFb);
+< 	else
+< 		kernel( t_in_img, fc_result);
+< }
+< 
+< // ------------------------------------------------------------------
+< // END OF PROGRAM
+< // ------------------------------------------------------------------
+---
+> /*
+>  * C++ Templete for a Binarized CNN
+>  *
+>  *  Created on: 2017/07/01
+>  *      Author: H. Nakahara
+>  */
+> 
+> #include <stdio.h>
+> #include <stdlib.h>
+> #include <iostream>
+> #include <bitset>
+> 
+> #include <ap_int.h>
+> 
+> #ifdef __SDSCC__
+> #include "sds_lib.h"
+> #else 
+> #define sds_alloc(x)(malloc(x))
+> #define sds_free(x)(free(x))
+> #endif
+> 
+> //#define NO_SETUP_MEM
+> 
+> // custom bitwidth for streaming operation
+> typedef ap_int<2>    bit_2;
+> typedef ap_int<4>    bit_4;
+> typedef ap_int<8>    bit_8;
+> typedef ap_int<16>   bit_16;
+> typedef ap_int<32>   bit_32;
+> typedef ap_int<64>   bit_64;
+> typedef ap_int<128>  bit_128;
+> typedef ap_int<256>  bit_256;
+> typedef ap_int<512>  bit_512;
+> 
+> #ifndef NO_SETUP_MEM
+> // weight memory -----------------------------------------------------------
+> (DEF_WEIGHT_MEM)
+> // bias memory ------------------------------------------------------------
+> (DEF_BIAS_MEM)
+> #else
+> // weight and bias memory -----------------------------------------------------------
+> #include "weight.h"
+> #endif
+> // -------------------------------------------------------------------------
+> // Load weights and bias from the external memory (DDR3/4 Memory)
+> // -------------------------------------------------------------------------
+> #ifndef NO_SETUP_MEM
+> #ifdef __SDSCC__
+> #pragma SDS data access_pattern(t_bin_convW: SEQUENTIAL)
+> #pragma SDS data access_pattern(t_BNFb: SEQUENTIAL)
+> #pragma SDS data zero_copy(t_bin_convW[0:(WEIGHT_SIZ)])
+> #pragma SDS data zero_copy(t_BNFb[0:(BIAS_SIZ)])
+> #endif
+> void setup(
+> #ifdef __SDSCC__
+> 	    int *t_bin_convW,
+> 		int *t_BNFb
+> #else 
+>         int t_bin_convW[(WEIGHT_SIZ)],
+>         int t_BNFb[(BIAS_SIZ)]
+> #endif
+> )
+> {
+> 	// set buffer memory -----------------------------------------------
+> 	int x, y, of, inf, offset;
+> 
+> 	// -----------------------------------------------------------------
+> 	// setup memory
+> 	// -----------------------------------------------------------------
+> (SET_WEIGHT_MEM)
+> (SET_BIAS_MEM)
+> }
+> #endif
+> 
+> // -------------------------------------------------------------------------
+> // Binary Convolutional Layer
+> // -------------------------------------------------------------------------
+> void bin_conv2d_pipeline(
+> 		ap_int<(MAX_BCONV_WIDTH)> fmap[(IMGSIZ)][(IMGSIZ)],
+> 		int layer,
+> 		int size,
+> 		int n_in,
+> 		int n_out
+> 		)
+> {
+> (BCONV_REG_PRAGMA)
+> 
+> 	int ofeat, infeat, w_flag;
+> 	int i, k, ky, kx, ix, iy, ox, oy;
+> 	int idx = 0;
+> 
+> 	static ap_int<(MAX_BCONV_WIDTH)> shift_reg1[((IMGSIZ)+2)*3];
+> #pragma HLS ARRAY_PARTITION variable=shift_reg1 complete dim=1
+> 	static ap_uint<1> padding_shift_reg[((IMGSIZ)+2)*3];
+> #pragma HLS ARRAY_PARTITION variable=padding_shift_reg complete dim=1
+> 
+> 	int cnt = 0;
+> 
+> 	ix = iy = ox = oy = w_flag = 0;
+> 
+>     CONV_IF: for( k = 0; k < (size+2) * (size+2); k++){
+> #pragma HLS loop_flatten off
+> 
+>     	SHIFT_REG: for( i = 0; i < 2 * ((IMGSIZ)+2) + 3; i++){
+> #pragma HLS UNROLL
+>     		shift_reg1[ i] = shift_reg1[ i + 1];
+>     		padding_shift_reg[ i] = padding_shift_reg[ i + 1];
+>     	}
+>     	ap_int<(MAX_BCONV_WIDTH)> din;
+>     	ap_uint<1> padding;
+>     	if( (ix > 0 && ix <= size) && (iy > 0 && iy <= size)){
+> 		din = (ap_int<(MAX_BCONV_WIDTH)>)fmap[iy-1][ix-1];
+> 		padding = 0;
+>     	} else {
+>     		ap_int<(MAX_BCONV_WIDTH)> allone;
+>     		allone = ~0;
+>     		din = allone;
+> 		padding = 1;
+>     	}
+>     	switch( layer){
+> (BCONV_REG_SELECT)
+>     	}
+> 
+>     	ix++;
+>     	if( ix == size+2){
+>     		ix = 0;
+>     		iy++;
+>     	}
+> 
+>     	if( k >= ((size+2)*2+3 - 1)){
+>     		w_flag++;
+>     		if( w_flag > (size+2)){
+>             	w_flag = 1;
+>             	cnt    = 0;
+>             }
+>     	}
+> 
+>     	// convolutional operation -----------------------------------
+> 		ap_uint<(MAX_BCONV_WIDTH)> bit_tmp = 0x1;
+> 		ap_uint<(MAX_BCONV_WIDTH)> streamOut = 0;
+> 
+>     	OF: for( ofeat = 0; ofeat < n_out; ofeat++){
+>     		ap_int<16> tmp = 0;
+>     		ap_int<16> tmp2;
+> 
+>             CONV_KY: for( ky = 0; ky < 3; ky++){
+> #pragma HLS pipeline
+>             	CONV_KX: for( kx = 0; kx < 3; kx++){
+>             		ap_uint<(MAX_BCONV_WIDTH)> bx, bw;
+>             		ap_uint<(MAX_BCONV_WIDTH)> bxor;
+>                     ap_uint<(MAX_BCONV_WIDTH)> mask;
+>                     ap_uint<(MAX_BCONV_WIDTH)> allzero = 0;
+>                     ap_uint<1>is_padding;
+> 
+>             		switch( layer){
+> (BCONV_WEIGHT_SELECT)
+>             		}
+> 
+>                     (BIN_XOR_MAC)
+> 
+> 			tmp2 = 0;
+>                     ONES_COUNT: for( i = 0; i < (MAX_BCONV_WIDTH); i++){
+>                         tmp2 += (((bxor >> i) & 0x1) == 1) ? 1 : 0;
+>                     }
+>                     if( is_padding == 0)
+>                         tmp += (n_in - tmp2 * 2);
+> 		}
+>             }
+> 
+>             if( w_flag > 0 && w_flag <= size){
+> #pragma HLS pipeline
+>             	ap_int<16> bias;
+>             	switch( layer){
+> (BCONV_BIAS_SELECT)
+>             	}
+>             	tmp += bias;
+> 
+>             	if( tmp >= 0) streamOut = streamOut | bit_tmp;
+> 
+>             	bit_tmp = bit_tmp << 1;
+> 
+>             	cnt++;
+>             	if( cnt == n_out){
+>             		cnt = 0;
+>             		fmap[oy][ox] = (ap_int<(MAX_BCONV_WIDTH)>)streamOut;
+> 
+>             		ox++;
+>             		if( ox == size){
+>             			ox = 0;
+>             			oy++;
+>             		}
+> 
+>             		idx++;
+>             	}
+> 
+>             }
+>     	}
+> 
+>     }
+> }
+> 
+> // ------------------------------------------------------------------------
+> template< typename BIN_TYPE, typename BOUT_TYPE, int N_IFEAT, int N_OFEAT, int IF_SIZ, int OF_SIZ>
+> void int_conv2d_pipeline(
+> 		BIN_TYPE infmap[IF_SIZ][IF_SIZ],
+> 		BOUT_TYPE outfmap[OF_SIZ][OF_SIZ],
+> 		ap_int<(NUMIMG)> W[N_OFEAT][3*3],
+> 		ap_int<20> BNFb[N_OFEAT]
+> 		)
+> {
+> #pragma HLS ARRAY_PARTITION variable=W cyclic factor=9 dim=2
+> 
+> 	int ofeat, infeat;
+> 	int w_flag;
+> 	int i, k, ky, kx;
+> 
+> 	int idx = 0;
+> 
+> 	static ap_int<N_IFEAT> shift_reg1[(IF_SIZ+2)*3];
+> #pragma HLS ARRAY_PARTITION variable=shift_reg1 complete dim=1
+> 	int cnt = 0;
+> 
+> 	int debug_out = 0;
+>     w_flag = 0;
+> 
+>     int ix, iy, ox, oy;
+>     ix = iy = ox = oy = 0;
+> 
+>     CONV_IF: for( k = 0; k < (IF_SIZ+2) * (IF_SIZ+2); k++){
+> #pragma HLS loop_flatten off
+> 
+>     	// pipeline register ------------------------------------------
+>     	SHIFT_REG: for( i = 0; i < 2 * (IF_SIZ+2) + 3; i++){
+> #pragma HLS UNROLL
+>     		shift_reg1[ i] = shift_reg1[ i + 1];
+>     	}
+>     	ap_int<N_IFEAT> din;
+>     	if( (ix > 0 && ix <= IF_SIZ) && (iy > 0 && iy <= IF_SIZ)){
+>     		din = infmap[iy-1][ix-1];
+>     	} else {
+>             ap_int<N_IFEAT> allzero;
+>             allzero = 0;
+>             din = allzero;
+>     	}
+>     	shift_reg1[ 2 * (IF_SIZ+2) + 3 - 1] = din;
+> 
+>     	ix++;
+>     	if( ix == IF_SIZ+2){
+>     		ix = 0;
+>     		iy++;
+>     	}
+> 
+> 
+>     	// enable MAC operation
+>     	if( k >= ((IF_SIZ+2)*2+3 - 1)){
+>     		w_flag++;
+>     		if( w_flag > (IF_SIZ+2)){
+>             	w_flag = 1;
+>             	cnt    = 0;
+>             }
+>     	}
+> 
+>     	// convolutional operation -----------------------------------
+> 		ap_uint<N_OFEAT>bit_tmp = 0x1;
+> 		ap_uint<N_OFEAT> streamOut = 0;
+> 
+>     	OF: for( ofeat = 0; ofeat < N_OFEAT; ofeat++){
+>     		int tmp = 0;
+>     		ap_int<20> tmp2;
+> 
+>             CONV_KY: for( ky = 0; ky < 3; ky++){
+> #pragma HLS pipeline
+>             	CONV_KX: for( kx = 0; kx < 3; kx++){
+>             		ap_int<64> bx;
+>             		ap_int<3> bw;
+> 
+>             		bx = shift_reg1[ky * (IF_SIZ+2) + kx];
+>             		bw = W[ofeat][ky*3+kx];
+> 
+>             		MAC_RGB: for( i = 0; i < 3; i++){
+>             			tmp2 = ap_int<20>(bx & 0xFFFFF);
+>             			tmp = ((bw & 0x1) == 0) ? (tmp - (int)tmp2) : (tmp + (int)tmp2);
+>             			bw = bw >> 1;
+>             			bx = bx >> 20;
+>             		}
+>             	}
+>             }
+> 
+>             // output to Streaming Buffer
+>             if( w_flag > 0 && w_flag <= IF_SIZ){
+> #pragma HLS pipeline
+> 
+>             	tmp += BNFb[ofeat];
+> 
+>             	if( tmp >= 0) streamOut = streamOut | bit_tmp;
+> 
+>             	bit_tmp = bit_tmp << 1;
+> 
+>             	cnt++;
+>             	if( cnt == N_OFEAT){
+>             		cnt = 0;
+> 
+>             		outfmap[oy][ox] = streamOut;
+> 
+>             		ox++;
+>             		if( ox == OF_SIZ){
+>             			ox = 0;
+>             			oy++;
+>             		}
+> 
+>             		idx++;
+>             	}
+> 
+>             }
+>     	}
+> 
+>     }
+> }
+> 
+> template< typename BIN_TYPE, typename BOUT_TYPE, int NUM_IFEAT, int NUM_OFEAT,
+>           int INFEAT_SIZ, int OFEAT_SIZ>
+> void int_conv2d_layer(
+> 		BIN_TYPE infmap[INFEAT_SIZ][INFEAT_SIZ],
+> 		BOUT_TYPE outfmap[OFEAT_SIZ][OFEAT_SIZ],
+> 		ap_int<(NUMIMG)> W[NUM_OFEAT][3*3],
+> 		ap_int<20> BNFb[NUM_OFEAT]
+> )
+> {
+> 	int_conv2d_pipeline< BIN_TYPE, BOUT_TYPE, NUM_IFEAT, NUM_OFEAT,
+> 		INFEAT_SIZ, OFEAT_SIZ>( infmap, outfmap, W, BNFb);
+> }
+> 
+> // -------------------------------------------------------------------------
+> // Maximum Pooling Layer
+> // -------------------------------------------------------------------------
+> template< typename TYPE_BIT, int FEAT_SIZ, int POOL_SIZ>
+> void max_pooling_layer( TYPE_BIT ftmp[FEAT_SIZ][FEAT_SIZ])
+> {
+> 	int inf_x, inf_y, oy, ox;
+> 
+> 	TYPE_BIT tmp0, tmp1, tmp2, tmp3, m;
+> 
+> 	oy = 0;
+> 	PY: for( inf_y = 0; inf_y < FEAT_SIZ; inf_y += 2){
+> 		ox = 0;
+> 		PX: for( inf_x = 0; inf_x < FEAT_SIZ; inf_x += 2){
+> 			tmp0 = ftmp[inf_y][inf_x];
+> 			tmp1 = ftmp[inf_y][inf_x+1];
+> 			tmp2 = ftmp[inf_y+1][inf_x];
+> 			tmp3 = ftmp[inf_y+1][inf_x+1];
+> 
+> 			m = tmp0 | tmp1 | tmp2 | tmp3;
+> 			ftmp[oy][ox] = m;
+> 			ox++;
+> 		}
+> 		oy++;
+> 	}
+> }
+> 
+> // -------------------------------------------------------------------------
+> // FC Layer
+> // -------------------------------------------------------------------------
+> template < int NUM_OFEAT, int NUM_INFEAT>
+> void fc_layer(
+> 	ap_int<1> fc_tmp[NUM_INFEAT],
+> 	ap_int<1> lW[NUM_OFEAT][NUM_INFEAT],
+> 	ap_int<16> b_BNFb[NUM_OFEAT],
+> 	int fc_result[(MAX_DENSE_SIZ)]
+> )
+> {
+> 	int ofeat, tmp, infeat;
+> 
+> 	FC_O: for( ofeat = 0; ofeat < NUM_OFEAT; ofeat++){
+> #pragma HLS LOOP_FLATTEN off
+> 		tmp = 0;
+> 
+> 		FC_I: for( infeat = 0; infeat < NUM_INFEAT; infeat++){
+> #pragma HLS pipeline
+> 			ap_int<1> bw, bx, xnor;
+> 
+> 			bw = lW[ofeat][infeat];
+> 			bx = fc_tmp[infeat];
+> 			xnor = ~(bw ^ bx);
+> 
+> 			tmp += (xnor == 0) ? -1 : +1;
+> 		}
+> 
+> 		fc_result[ofeat] = tmp + b_BNFb[ofeat];
+> 	}
+> }
+> 
+> // -------------------------------------------------------------------------
+> // Binarized CNN Kernel
+> // -------------------------------------------------------------------------
+> #ifdef __SDSCC__
+> #pragma SDS data access_pattern(t_in_img: SEQUENTIAL)
+> #pragma SDS data zero_copy(t_in_img[0:(IMGSIZ)*(IMGSIZ)])
+> #endif
+> void kernel(
+> #ifdef __SDSCC__
+>         ap_int<64> t_in_img[(IMGSIZ)*(IMGSIZ)],
+>         int fc_result[(OUT_DENSE_SIZ)]
+> #else 
+>         ap_int<64> t_in_img[(IMGSIZ)*(IMGSIZ)],
+>         int fc_result[(OUT_DENSE_SIZ)]
+> #endif
+> )
+> {
+> 	ap_int<(MAX_BCONV_WIDTH)> fb_tmp[(IMGSIZ)][(IMGSIZ)];
+> 	ap_int<1> fc_tmp[(MAX_DENSE_SIZ)];
+> 	ap_int<64> in_img[(IMGSIZ)][(IMGSIZ)];
+> 
+> 	int y, x, of, layer, bin_layer_idx;
+> (DEF_CNN_PARAMETER)
+> 
+> 	for( y = 0; y < (IMGSIZ); y++){
+> 		for( x = 0; x < (IMGSIZ); x++){
+> 			in_img[y][x] = t_in_img[y*(IMGSIZ)+x];
+> 		}
+> 	}
+> 
+> #pragma HLS INLINE
+> 
+>     bin_layer_idx = 1;
+> 	BCONV: for( layer = 0; layer < (NUM_LAYER); layer++){
+> 		switch(layer){
+> (DEF_CNN_LAYER)
+> 		}
+> 	}
+> }
+> 
+> //--------------------------------------------------------------------
+> // Top Function for a Binarized CNN
+> //--------------------------------------------------------------------
+> #ifdef __SDSCC__
+> #pragma SDS data access_pattern(t_bin_convW: SEQUENTIAL)
+> #pragma SDS data access_pattern(t_BNFb: SEQUENTIAL)
+> #pragma SDS data access_pattern(t_in_img: SEQUENTIAL)
+> #pragma SDS data zero_copy(t_bin_convW[0:(WEIGHT_SIZ)])
+> #pragma SDS data zero_copy(t_BNFb[0:(BIAS_SIZ)])
+> #pragma SDS data zero_copy(t_in_img[0:(IMGSIZ)*(IMGSIZ)])
+> #endif
+> void BinCNN(
+> #ifdef __SDSCC__
+>         int *t_bin_convW,
+>         int *t_BNFb,
+>         ap_int<64> t_in_img[(IMGSIZ)*(IMGSIZ)],
+>         int fc_result[(OUT_DENSE_SIZ)],
+>         int init
+> #else 
+> #ifndef NO_SETUP_MEM
+>         int t_bin_convW[(WEIGHT_SIZ)],
+>         int t_BNFb[(BIAS_SIZ)],
+> #endif
+>         ap_int<64> t_in_img[(IMGSIZ)*(IMGSIZ)],
+>         int fc_result[(OUT_DENSE_SIZ)],
+> #ifndef NO_SETUP_MEM
+>         int init
+> #else
+>         int *predict_num
+> #endif
+> #endif
+> )
+> {
+> /*
+> #pragma HLS INTERFACE s_axilite register port=t_bin_convW bundle=slv0
+> #pragma HLS INTERFACE s_axilite register port=t_BNFb bundle=slv0
+> #pragma HLS INTERFACE s_axilite register port=t_in_img bundle=slv0
+> #pragma HLS INTERFACE s_axilite register port=fc_result bundle=slv0
+> #pragma HLS INTERFACE s_axilite register port=init bundle=slv0
+> #pragma HLS INTERFACE s_axilite register port=return bundle=slv0
+> */
+> #ifndef NO_SETUP_MEM
+> 	if( init == 1)
+> 		setup( t_bin_convW, t_BNFb);
+> 	else
+> 		kernel( t_in_img, fc_result);
+> #else
+>     int fc_result_tmp[(OUT_DENSE_SIZ)];
+>     kernel( t_in_img, fc_result_tmp);
+> #endif
+> 
+> #ifdef NO_SETUP_MEM
+>     int i;
+>     int max_val = INT_MIN, max_idx = 0;
+>     for( i = 0; i < (OUT_DENSE_SIZ); i++){
+>         if( max_val < fc_result_tmp[i]){
+>             max_val = fc_result_tmp[i];
+>             max_idx = i;
+>         }
+>         fc_result[i] = fc_result_tmp[i];
+>     }
+> 
+>     *predict_num = max_idx;
+> #endif
+> }
+> 
+> // ------------------------------------------------------------------
+> // END OF PROGRAM
+> // ------------------------------------------------------------------
+diff -r GUINNESS/template_cpp_r7_main.cpp GUINNESS_on_colab/template_cpp_r7_main.cpp
+1,125c1,166
+< /*
+<  * C++ Templete for a Binarized CNN
+<  *
+<  *  Created on: 2017/07/01
+<  *      Author: H. Nakahara
+<  */
+< 
+< #include <stdio.h>
+< #include <stdlib.h>
+< #include <iostream>
+< #include <bitset>
+< 
+< #include <ap_int.h>
+< 
+< #ifdef __SDSCC__
+< #include "sds_lib.h"
+< #else 
+< #define sds_alloc(x)(malloc(x))
+< #define sds_free(x)(free(x))
+< #endif
+< 
+< void BinCNN(
+< #ifdef __SDSCC__
+<         int *t_bin_convW,
+<         int *t_BNFb,
+<         ap_int<64> t_in_img[(IMGSIZ)*(IMGSIZ)],
+<         int fc_result[(OUT_DENSE_SIZ)],
+<         int init
+< #else 
+<         int t_bin_convW[(WEIGHT_SIZ)],
+<         int t_BNFb[(BIAS_SIZ)],
+<         ap_int<64> t_in_img[(IMGSIZ)*(IMGSIZ)],
+<         int fc_result[(OUT_DENSE_SIZ)],
+<         int init
+< #endif
+< );
+< 
+< //--------------------------------------------------------------------
+< // Main Function
+< //--------------------------------------------------------------------
+< int main( int argc, char *argv[])
+< {
+<     ap_int<64> *t_tmp_img;
+<     t_tmp_img = (ap_int<64> *)sds_alloc(((IMGSIZ)*(IMGSIZ))*sizeof(ap_int<64>));
+< 
+<     int fc_result[(OUT_DENSE_SIZ)];
+<     int rgb, y, x, i, offset;
+< 
+<     // copy input image to f1
+<     for( y = 0; y < (IMGSIZ); y++){
+<     	for( x = 0; x < (IMGSIZ); x++){
+<     		t_tmp_img[y*(IMGSIZ)+x] = 0;
+<         }
+<     }
+< 
+<     // ------------------------------------------------------------------
+<     printf("load weights\n");
+<     int *t_bin_convW;
+< 	int *t_BNFb;
+< 	t_bin_convW = (int *)sds_alloc(((WEIGHT_SIZ))*sizeof(int));
+< 	t_BNFb   = (int *)sds_alloc(((BIAS_SIZ))*sizeof(int));
+< 
+< 	int of, inf, d_value;
+< 	FILE *fp;
+< 	char line[256];
+< 
+< (READ_BIAS_MEM)
+< 
+< (READ_WEIGHT_MEM)
+< 
+<     printf("setup... \n");
+< 	BinCNN( t_bin_convW, t_BNFb, t_tmp_img, fc_result, 1);
+< 
+<     char image_name[256];
+<     int cnt;
+< 
+< #ifdef __SDSCC__
+<     sscanf( argv[1], "%s", image_name); // 1st argument: test image (text file)
+<     sscanf( argv[2], "%d", &cnt); // 2nd argument: # of inferences 
+< #else 
+<     sprintf( image_name, "test_img.txt");
+<     cnt = 1;
+< #endif
+< 
+< 
+<     int pixel;
+<     printf("LOAD TESTBENCH %s ... ", image_name);
+<     if( (fp = fopen(image_name, "r")) == NULL)fprintf(stderr,"CANNOT OPEN\n");
+<     for( y = 0; y < (IMGSIZ); y++){
+<         for( x = 0; x < (IMGSIZ); x++){
+<             ap_int<64>tmp = 0;
+<             for( rgb = (NUMIMG) - 1; rgb >= 0 ; rgb--){
+<                 if( fgets( line, 256, fp) == NULL)
+<                     fprintf(stderr,"EMPTY FILE READ\n"); 
+<                 sscanf( line, "%d", &d_value);
+< 
+<                 tmp = tmp << 20;
+< 
+<                 pixel = d_value;
+<                 tmp |= ( pixel & 0xFFFFF);
+<             }
+<             t_tmp_img[ y * (IMGSIZ) + x] = tmp;
+<         }
+<     }
+<     printf("OK\n");
+<     fclose(fp);
+< 
+<     printf("Inference %d times ... ", cnt);
+<     for( i = 0; i < cnt; i++){
+<         BinCNN( t_bin_convW, t_BNFb, t_tmp_img, fc_result, 0);
+<     }
+<     printf("OK\n");
+< 
+<     printf("Result\n");
+<     for( i = 0; i < (OUT_DENSE_SIZ); i++)printf("%5d ", fc_result[i]);
+<     printf("\n");
+< 
+<     sds_free( t_tmp_img); sds_free( t_bin_convW); sds_free( t_BNFb);
+< 
+<     return 0;
+< }
+< 
+< // ------------------------------------------------------------------
+< // END OF PROGRAM
+< // ------------------------------------------------------------------
+---
+> /*
+>  * C++ Templete for a Binarized CNN
+>  *
+>  *  Created on: 2017/07/01
+>  *      Author: H. Nakahara
+>  */
+> 
+> #include <stdio.h>
+> #include <stdlib.h>
+> #include <iostream>
+> #include <bitset>
+> 
+> #include <ap_int.h>
+> 
+> #ifdef __SDSCC__
+> #include "sds_lib.h"
+> #else 
+> #define sds_alloc(x)(malloc(x))
+> #define sds_free(x)(free(x))
+> #endif
+> 
+> //#define NO_SETUP_MEM
+> 
+> void BinCNN(
+> #ifdef __SDSCC__
+>         int *t_bin_convW,
+>         int *t_BNFb,
+>         ap_int<64> t_in_img[(IMGSIZ)*(IMGSIZ)],
+>         int fc_result[(OUT_DENSE_SIZ)],
+>         int init
+> #else 
+> #ifndef NO_SETUP_MEM
+>         int t_bin_convW[(WEIGHT_SIZ)],
+>         int t_BNFb[(BIAS_SIZ)],
+> #endif
+>         ap_int<64> t_in_img[(IMGSIZ)*(IMGSIZ)],
+>         int fc_result[(OUT_DENSE_SIZ)],
+> #ifndef NO_SETUP_MEM
+>         int init
+> #else
+>         int *predict_num
+> #endif
+> #endif
+> );
+> 
+> // weight memory -----------------------------------------------------------
+> (EXTERN_WEIGHT_MEM)
+> // bias memory ------------------------------------------------------------
+> (EXTERN_BIAS_MEM)
+> //--------------------------------------------------------------------
+> // Main Function
+> //--------------------------------------------------------------------
+> int main( int argc, char *argv[])
+> {
+>     ap_int<64> *t_tmp_img;
+>     t_tmp_img = (ap_int<64> *)sds_alloc(((IMGSIZ)*(IMGSIZ))*sizeof(ap_int<64>));
+> 
+>     int fc_result[(OUT_DENSE_SIZ)];
+>     int rgb, y, x, i, offset;
+> 
+>     // copy input image to f1
+>     for( y = 0; y < (IMGSIZ); y++){
+>     	for( x = 0; x < (IMGSIZ); x++){
+>     		t_tmp_img[y*(IMGSIZ)+x] = 0;
+>         }
+>     }
+> 
+> #ifndef NO_SETUP_MEM
+>     // ------------------------------------------------------------------
+>     printf("load weights\n");
+>     int *t_bin_convW;
+> 	int *t_BNFb;
+> 	t_bin_convW = (int *)sds_alloc(((WEIGHT_SIZ))*sizeof(int));
+> 	t_BNFb   = (int *)sds_alloc(((BIAS_SIZ))*sizeof(int));
+> #endif
+> 
+> 	int of, inf, d_value;
+> 	FILE *fp;
+> 	char line[256];
+> 
+> #ifndef NO_SETUP_MEM
+> (READ_BIAS_MEM)
+> 
+> (READ_WEIGHT_MEM)
+> 
+>     printf("setup... \n");
+> 	BinCNN( t_bin_convW, t_BNFb, t_tmp_img, fc_result, 1);
+> #endif
+> 
+>     char image_name[256];
+>     int cnt;
+> 
+> #ifdef __SDSCC__
+>     sscanf( argv[1], "%s", image_name); // 1st argument: test image (text file)
+>     sscanf( argv[2], "%d", &cnt); // 2nd argument: # of inferences 
+> #else 
+>     sprintf( image_name, "test_img_0.txt");
+>     cnt = 1;
+> #endif
+> 
+> 
+>     int pixel;
+>     printf("LOAD TESTBENCH %s ... ", image_name);
+>     if( (fp = fopen(image_name, "r")) == NULL)fprintf(stderr,"CANNOT OPEN\n");
+>     for( y = 0; y < (IMGSIZ); y++){
+>         for( x = 0; x < (IMGSIZ); x++){
+>             ap_int<64>tmp = 0;
+>             for( rgb = (NUMIMG) - 1; rgb >= 0 ; rgb--){
+>                 if( fgets( line, 256, fp) == NULL)
+>                     fprintf(stderr,"EMPTY FILE READ\n"); 
+>                 sscanf( line, "%d", &d_value);
+> 
+>                 tmp = tmp << 20;
+> 
+>                 pixel = d_value;
+>                 tmp |= ( pixel & 0xFFFFF);
+>             }
+>             t_tmp_img[ y * (IMGSIZ) + x] = tmp;
+>         }
+>     }
+>     printf("OK\n");
+>     fclose(fp);
+> 
+> #ifdef NO_SETUP_MEM
+>     int predict_num;
+> #endif
+> 
+>     printf("Inference %d times ... ", cnt);
+>     for( i = 0; i < cnt; i++){
+> #ifndef NO_SETUP_MEM
+>         BinCNN( t_bin_convW, t_BNFb, t_tmp_img, fc_result, 0);
+> #else
+>         BinCNN( t_tmp_img, fc_result, &predict_num);
+> #endif
+>     }
+>     printf("OK\n");
+> 
+>     printf("Result\n");
+>     for( i = 0; i < (OUT_DENSE_SIZ); i++)printf("%5d ", fc_result[i]);
+>     printf("\n");
+> 
+> #ifdef NO_SETUP_MEM
+>     printf("Predicted number = %d\n", predict_num);
+> #endif
+> 
+>     sds_free( t_tmp_img);
+> 
+> #ifndef NO_SETUP_MEM
+>     sds_free( t_bin_convW); sds_free( t_BNFb);
+> 
+>     printf("Output the header file weight.h including the weight and bias mem ... ");
+>     if( (fp = fopen("weight.h", "w")) == NULL)fprintf(stderr,"CANNOT OPEN\n");
+> 
+> (PRINT_WEIGHT_MEM)
+> (PRINT_BIAS_MEM)
+> 
+>     printf("OK\n");
+>     fclose(fp);
+> #endif
+> 
+>     return 0;
+> }
+> 
+> // ------------------------------------------------------------------
+> // END OF PROGRAM
+> // ------------------------------------------------------------------
+Only in GUINNESS: temp.state
+diff -r GUINNESS/trainer.py GUINNESS_on_colab/trainer.py
+3c3
+< from scipy.misc import imresize, imrotate
+---
+> #from scipy.misc import imresize, imrotate
+30a31,35
+>         print("-> batch_size         : "+str(batch_size))
+>         print("-> epoch_num          : "+str(self.epoch_num))
+>         print("-> range of i (train) : start = "+str(0)+", stop = "+str(len(x))+", step = "+str(self.batch_size))
+>         print("-> range of i (vaild) : start = "+str(0)+", stop = "+str(len(valid_x))+", step = "+str(self.batch_size))
+>         print("-> range of i (test)  : start = "+str(0)+", stop = "+str(len(test_x))+", step = "+str(self.batch_size))
+35a41,47
+>                 if (i + batch_size) > len(x):
+>                     break
+>                 elif (i + batch_size + batch_size) > len(x):
+>                     batch_end = len(x)
+>                 else:
+>                     batch_end = i + batch_size
+>                 print("\r-> epoch = "+str(epoch)+", i (train) : start = "+str(i)+", end = "+str(batch_end), end="")
+37c49
+<                 batch_index = perm[i:i + batch_size]
+---
+>                 batch_index = perm[i:batch_end]
+55,56c67,75
+<                     x_batch = valid_x[i:i + batch_size]
+<                     loss, acc = self.__forward(x_batch, valid_y[i:i + batch_size], train=False)
+---
+>                     if (i + batch_size) > len(valid_x):
+>                         break
+>                     elif (i + batch_size + batch_size) > len(valid_x):
+>                         batch_end = len(valid_x)
+>                     else:
+>                         batch_end = i + batch_size
+>                     print("\r-> epoch = "+str(epoch)+", i (valid) : start = "+str(i)+", end = "+str(batch_end), end="")
+>                     x_batch = valid_x[i:batch_end]
+>                     loss, acc = self.__forward(x_batch, valid_y[i:batch_end], train=False)
+65,66c84,92
+<                     x_batch = test_x[i:i + batch_size]
+<                     loss, acc = self.__forward(x_batch, test_y[i:i + batch_size], train=False)
+---
+>                     if (i + batch_size) > len(test_x):
+>                         break
+>                     elif (i + batch_size + batch_size) > len(test_x):
+>                         batch_end = len(test_x)
+>                     else:
+>                         batch_end = i + batch_size
+>                     print("\r-> epoch = "+str(epoch)+", i (test) : start = "+str(i)+", end = "+str(batch_end), end="")
+>                     x_batch = test_x[i:batch_end]
+>                     loss, acc = self.__forward(x_batch, test_y[i:batch_end], train=False)
+76,77c102,105
+<         x = Variable(xp.asarray(batch_x), volatile=not train)
+<         t = Variable(xp.asarray(batch_t), volatile=not train)
+---
+>         # x = Variable(xp.asarray(batch_x), volatile=not train)
+>         # t = Variable(xp.asarray(batch_t), volatile=not train)
+>         x = Variable(xp.asarray(batch_x))
+>         t = Variable(xp.asarray(batch_t))
+diff -r GUINNESS/train.py GUINNESS_on_colab/train.py
+78a79,80
+>     parser.add_argument('--valid', type=str, default='no',
+>                         help='except validation data')
+96,98c98,104
+<         index = np.random.permutation(len(images['train']))        
+<         threshold = np.int32(len(images['train'])/10*9)
+<         train_index = index[:threshold]
+---
+>         index = np.random.permutation(len(images['train']))
+>         threshold = np.int32(len(images['train'])/10*9)        
+>         if(args.valid=='yes'):    
+>             train_index = index[:threshold]
+>         else:
+>             train_index = index
+>         
+162c168
+<     state = {'best_valid_error': 100, 'best_test_error': 100, 'clock': time.clock()}
+---
+>     state = {'best_valid_error': 100, 'best_test_error': 100, 'clock': time.perf_counter()}#time.clock()}
+171,175c177,188
+<         if valid_error < state['best_valid_error']:
+<             serializers.save_npz('{}.model'.format(model_prefix), n)
+<             serializers.save_npz('{}.state'.format(model_prefix), o)
+<             state['best_valid_error'] = valid_error
+<             state['best_test_error'] = test_error
+---
+>         if(args.valid=='yes'):
+>             if valid_error < state['best_valid_error']:
+>                 serializers.save_npz('{}.model'.format(model_prefix), n)
+>                 serializers.save_npz('{}.state'.format(model_prefix), o)
+>                 state['best_valid_error'] = valid_error
+>                 state['best_test_error'] = test_error
+>         else:
+>             if test_error < state['best_test_error']:
+>                 serializers.save_npz('{}.model'.format(model_prefix), n)
+>                 serializers.save_npz('{}.state'.format(model_prefix), o)
+>                 state['best_valid_error'] = valid_error
+>                 state['best_test_error'] = test_error
+190c203
+<         clock = time.clock()
+---
+>         clock = time.perf_counter()#time.clock()
+Only in GUINNESS: train_status.txt
