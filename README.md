@@ -18,7 +18,7 @@ Changes from the original source code are written in diff.txt.
 1. Execute the following commands to execute high-level synthesis.
     ```
     $ unzip Project_BNN.zip
-    $ cd Project_BNN/content/GUINNESS_on_colab/Project_BNN
+    $ cd content/GUINNESS_on_colab/Project_BNN
     $ vivado_hls build.tcl
     ```
     - When high-level synthesis is completed, the Verilog file and parameter file are output to the `guinness` directory.
