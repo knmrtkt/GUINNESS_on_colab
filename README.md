@@ -2,7 +2,14 @@
 
 This repository is a modification of GUINNESS for use with Google colablatory.
 
+It is also possible to use in a local environment.
+
 There is a Jupiter notebook for road tracking that you can easily try by opening it in "Google colablatory".
+
+The main changes are:
+- Support for the latest chainer
+- Eliminate of GUI function
+- Addition of TCL script for high-level synthesis
 
 Changes from the original source code are written in diff.txt.
 
